@@ -5,3 +5,10 @@
 ## 1、项目背景介绍
 
 是根据datawhale的案例进行的学习记录开发，由于langchain发展过快，这个项目并不会使用原教程里的技术栈版本，会使用近期新的langchain版本。
+
+```
+python==3.11.15
+langchain==1.4.0
+langchain-community>=0.3
+langsmith>=0.3.45,<1
+```
