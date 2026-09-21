@@ -28,7 +28,7 @@ from time import mktime
 from urllib.parse import urlencode
 from wsgiref.handlers import format_date_time
 import zhipuai
-from langchain.utils import get_from_dict_or_env
+from langchain_core.utils import get_from_dict_or_env
 
 import websocket  # 使用websocket_client
 

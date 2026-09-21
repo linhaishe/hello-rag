@@ -10,7 +10,7 @@
 @Desc    :   在 LangChain LLM 基础上封装的项目类，统一了 GPT、文心、讯飞、智谱多种 API 调用
 '''
 
-from langchain.llms.base import LLM
+from langchain_core.language_models.llms import LLM
 from typing import Dict, Any, Mapping
 from pydantic import Field
 

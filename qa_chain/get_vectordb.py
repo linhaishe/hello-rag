@@ -2,7 +2,7 @@ import sys
 # sys.path.append("../embedding") 
 # sys.path.append("../database") 
 
-from langchain.embeddings.openai import OpenAIEmbeddings    # 调用 OpenAI 的 Embeddings 模型
+from langchain_openai import OpenAIEmbeddings    # 调用 OpenAI 的 Embeddings 模型
 import os
 from embedding.zhipuai_embedding import ZhipuAIEmbeddings
 from database.create_db import create_db,load_knowledge_db

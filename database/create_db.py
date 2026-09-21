@@ -5,10 +5,12 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import tempfile
 from dotenv import load_dotenv, find_dotenv
 from embedding.call_embedding import get_embedding
-from langchain.document_loaders import UnstructuredFileLoader
-from langchain.document_loaders import UnstructuredMarkdownLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyMuPDFLoader
+from langchain_community.document_loaders import (
+    UnstructuredFileLoader,
+    UnstructuredMarkdownLoader,
+    PyMuPDFLoader,
+)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 # 首先实现基本配置
 

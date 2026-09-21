@@ -10,13 +10,13 @@
 @Desc    :   基于百度文心大模型自定义 LLM 类
 '''
 
-from langchain.llms.base import LLM
+from langchain_core.language_models.llms import LLM
 from typing import Any, List, Mapping, Optional, Dict, Union, Tuple
 from pydantic import Field
 from llm.self_llm import Self_LLM
 import json
 import requests
-from langchain.callbacks.manager import CallbackManagerForLLMRun
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 # 调用文心 API 的工具函数
 def get_access_token(api_key : str, secret_key : str):
     """

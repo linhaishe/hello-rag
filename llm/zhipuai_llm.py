@@ -22,14 +22,14 @@ from typing import (
     Optional,
 )
 
-from langchain.callbacks.manager import (
+from langchain_core.callbacks.manager import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain.llms.base import LLM
-from langchain.pydantic_v1 import Field, root_validator
-from langchain.schema.output import GenerationChunk
-from langchain.utils import get_from_dict_or_env
+from langchain_core.language_models.llms import LLM
+from pydantic.v1 import Field, root_validator
+from langchain_core.outputs import GenerationChunk
+from langchain_core.utils import get_from_dict_or_env
 from llm.self_llm import Self_LLM
 
 logger = logging.getLogger(__name__)

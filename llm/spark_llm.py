@@ -10,13 +10,13 @@
 @Desc    :   基于讯飞星火大模型自定义 LLM 类
 '''
 
-from langchain.llms.base import LLM
+from langchain_core.language_models.llms import LLM
 from typing import Any, List, Mapping, Optional, Dict, Union, Tuple
 from pydantic import Field
 from llm.self_llm import Self_LLM
 import json
 import requests
-from langchain.callbacks.manager import CallbackManagerForLLMRun
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 import _thread as thread
 import base64
 import datetime
@@ -220,7 +220,6 @@ def spark_main(appid, api_key, api_secret, Spark_url,domain, question, temperatu
     ws.max_tokens = max_tokens
     ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
     return ''.join([output_queue.get() for _ in range(output_queue.qsize())])
-
 
 
 

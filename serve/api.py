@@ -48,9 +48,9 @@ class Item(BaseModel):
     # Secret_key
     Wenxin_secret_key : str = None
     # 数据库路径
-    db_path : str = "/vector_db/chroma"
+    db_path : str = "./vector_db/chroma"
     # 源文件路径
-    file_path : str = "/data_base/knowledge_db"
+    file_path : str = "./knowledge_db"
     # prompt template
     prompt_template : str = template
     # Template 变量

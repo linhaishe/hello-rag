@@ -3,8 +3,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from embedding.zhipuai_embedding import ZhipuAIEmbeddings
-from langchain.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from llm.call_llm import parse_llm_api_key
 
 def get_embedding(embedding: str, embedding_key: str=None, env_file: str=None):
