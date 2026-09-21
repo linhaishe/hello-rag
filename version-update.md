@@ -53,7 +53,7 @@ ChromaDB
   ↓
 相似度检索
   ↓
-RetrievalQA / ConversationalRetrievalChain
+Runnable Chain
   ↓
 LLM 返回答案
 ```
