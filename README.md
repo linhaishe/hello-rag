@@ -140,7 +140,19 @@ def file_loader(file, loaders: list):
 
 ### TextSplitter 切分
 
-
+```py
+loaders = []
+[file_loader(file, loaders) for file in files]
+docs = []
+for loader in loaders:
+    if loader is not None:
+        docs.extend(loader.load())
+# 创建“切分规则”
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500, chunk_overlap=150)
+# 切分文档
+split_docs = text_splitter.split_documents(docs)
+```
 
 ### Embedding 向量化
 
