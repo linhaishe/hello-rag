@@ -11,8 +11,8 @@
 | Markdown/TXT 解析 | Unstructured Loader | Community Unstructured Loader | `database/create_db.py` |
 | 文本切分 | `langchain.text_splitter` | `langchain_text_splitters` | `database/create_db.py` |
 | Prompt | `langchain.prompts` | `langchain_core.prompts` | `qa_chain/` |
-| 问答链 | `langchain.chains` | `langchain_classic.chains` | `qa_chain/` |
-| 对话记忆 | `langchain.memory` | `langchain_classic.memory` | `qa_chain/Chat_QA_chain_self.py` |
+| 问答链 | `langchain.chains` | LangChain Core Runnable | `qa_chain/` |
+| 对话记忆 | `langchain.memory` | 手动传递 `chat_history` | `qa_chain/Chat_QA_chain_self.py` |
 | Chroma 向量库 | `langchain.vectorstores.Chroma` | `langchain_chroma.Chroma` | `database/create_db.py`、`qa_chain/` |
 | OpenAI 模型 | `langchain.chat_models.ChatOpenAI` | `langchain_openai.ChatOpenAI` | `qa_chain/model_to_llm.py` |
 | OpenAI Embedding | `langchain.embeddings.openai` | `langchain_openai` | `embedding/`、`qa_chain/` |
@@ -27,7 +27,7 @@
 | 功能 | 原依赖 | 升级后依赖 |
 | --- | --- | --- |
 | LangChain 核心 | `langchain` 单体包 | `langchain`、`langchain-core` |
-| 旧版 Chain | 内置于 `langchain` | `langchain-classic` |
+| Chain 架构 | `langchain` 内置 Chain | LangChain Core Runnable |
 | Chroma 集成 | `chromadb==0.3.29` | `chromadb>=1.0,<2`、`langchain-chroma` |
 | OpenAI 集成 | `langchain` 内置 | `langchain-openai` |
 | HuggingFace 集成 | `langchain` 内置 | `langchain-huggingface` |
@@ -78,4 +78,4 @@ LLM 返回答案
 | 自定义 LLM 基类导入 | 已迁移 |
 | Gradio 参数兼容 | 已移除新版不支持的显示参数 |
 | Chain 调用方式 | 已改为 `chain.invoke({...})` |
-| 旧版 Chain 行为 | 依赖 `langchain-classic`，后续可改为新版 Runnable 架构 |
+| Chain 行为 | 已迁移到 Runnable 组合：Retriever → Prompt → LLM → OutputParser |

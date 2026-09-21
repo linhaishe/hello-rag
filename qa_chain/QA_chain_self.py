@@ -1,6 +1,7 @@
 from langchain_core.prompts import PromptTemplate
-from langchain_classic.chains import RetrievalQA
 from langchain_chroma import Chroma
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 import sys
 sys.path.append("../")
 from qa_chain.model_to_llm import model_to_llm
@@ -52,11 +53,18 @@ class QA_chain_self():
                                     template=self.template)
         self.retriever = self.vectordb.as_retriever(search_type="similarity",   
                                         search_kwargs={'k': self.top_k})  #默认similarity，k=4
-        # 自定义 QA 链
-        self.qa_chain = RetrievalQA.from_chain_type(llm=self.llm,
-                                        retriever=self.retriever,
-                                        return_source_documents=True,
-                                        chain_type_kwargs={"prompt":self.QA_CHAIN_PROMPT})
+        def format_docs(docs):
+            return "\n\n".join(doc.page_content for doc in docs)
+
+        self.qa_chain = (
+            {
+                "context": self.retriever | RunnableLambda(format_docs),
+                "question": RunnablePassthrough(),
+            }
+            | self.QA_CHAIN_PROMPT
+            | self.llm
+            | StrOutputParser()
+        )
 
     #基于大模型的问答 prompt 使用的默认提示模版
     #default_template_llm = """请回答下列问题:{question}"""
@@ -77,7 +85,6 @@ class QA_chain_self():
         if top_k == None:
             top_k = self.top_k
 
-        result = self.qa_chain.invoke({"query": question, "temperature": temperature, "top_k": top_k})
-        answer = result["result"]
+        answer = self.qa_chain.invoke(question)
         answer = re.sub(r"\\n", '<br/>', answer)
         return answer   

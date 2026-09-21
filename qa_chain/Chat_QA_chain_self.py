@@ -1,7 +1,8 @@
 from langchain_core.prompts import PromptTemplate
-from langchain_classic.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain_chroma import Chroma
-from langchain_classic.memory import ConversationBufferMemory
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 import sys
 sys.path.append('/Users/lta/Desktop/llm-universe/project')
@@ -84,14 +85,35 @@ class Chat_QA_chain_self:
         retriever = self.vectordb.as_retriever(search_type="similarity",   
                                         search_kwargs={'k': top_k})  #默认similarity，k=4
 
-        qa = ConversationalRetrievalChain.from_llm(
-            llm = llm,
-            retriever = retriever
+        prompt = PromptTemplate(
+            input_variables=["context", "question", "chat_history"],
+            template="""使用以下上下文和历史对话回答问题。如果你不知道答案，就说你不知道。
+上下文:
+{context}
+历史对话:
+{chat_history}
+问题: {question}
+回答:"""
         )
-        
-        #print(self.llm)
-        result = qa.invoke({"question": question,"chat_history": self.chat_history})       #result里有question、chat_history、answer
-        answer =  result['answer']
+
+        def format_docs(docs):
+            return "\n\n".join(doc.page_content for doc in docs)
+
+        def format_history(_):
+            return "\n".join(f"用户: {q}\n助手: {a}" for q, a in self.chat_history)
+
+        qa = (
+            {
+                "context": retriever | RunnableLambda(format_docs),
+                "question": RunnablePassthrough(),
+                "chat_history": RunnableLambda(format_history),
+            }
+            | prompt
+            | llm
+            | StrOutputParser()
+        )
+
+        answer = qa.invoke(question)
         answer = re.sub(r"\\n", '<br/>', answer)
         self.chat_history.append((question,answer)) #更新历史记录
 
