@@ -20,7 +20,7 @@ pip install -r requirements.txt
 uvicorn serve.api:app --reload
 
 # 运行项目
-python run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='./data_base/knowledge_db' -persist_path='./data_base/vector_db'
+python serve/run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='./data_base/knowledge_db' -persist_path='./data_base/vector_db'
 
 ```
 python==3.11.15
