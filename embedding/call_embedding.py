@@ -8,6 +8,9 @@ from langchain_openai import OpenAIEmbeddings
 from llm.call_llm import parse_llm_api_key
 
 def get_embedding(embedding: str, embedding_key: str=None, env_file: str=None):
+    """
+    是用来创建 Embedding 模型对象,还没开始 embedding
+    """
     if embedding == 'm3e':
         return HuggingFaceEmbeddings(model_name="moka-ai/m3e-base")
     if embedding_key == None:

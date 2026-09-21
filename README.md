@@ -6,7 +6,7 @@
 
 是根据datawhale的案例进行的学习记录开发，由于langchain发展过快，这个项目并不会使用原教程里的技术栈版本，会使用近期新的langchain版本。
 
-```
+```python
 # 创建 Conda 环境
 conda create -n llm-universe python==3.11.15
 # 激活 Conda 环境
@@ -21,8 +21,8 @@ uvicorn serve.api:app --reload
 
 # 运行项目
 python serve/run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='./data_base/knowledge_db' -persist_path='./data_base/vector_db'
-
 ```
+```python
 python==3.11.15
 langchain==1.4.0
 langchain-community>=0.3
@@ -33,17 +33,16 @@ langsmith>=0.3.45,<1
 
 Mac 是 Apple 芯片（osx-arm64），而 defaults 源里没有适用于 Apple 芯片的 Python 3.9.0，所以创建失败。
 直接执行：
-```
+
+```bash
 conda create -n llm-universe -c conda-forge python=3.9
 conda activate llm-universe
 python --version
 ```
-如果显示类似：
-`Python 3.9.x`
-就成功了。
-如果项目只要求 `Python 3.9`，不要求必须是 `3.9.0`，这就是最简单的解决办法。
 
-```
+如果显示类似：`Python 3.9.x` 就成功了。如果项目只要求 `Python 3.9`，不要求必须是 `3.9.0`，这就是最简单的解决办法。
+
+```python
 database/create_db.py
 qa_chain/get_vectordb.py
 qa_chain/QA_chain_self.py
@@ -58,11 +57,8 @@ serve/run_gradio.py
 → LLM 生成答案
 ```
 
-```
 "../" 是相对于你运行命令时的当前工作目录，而不是相对于当前 .py 文件。
-```
-
-```py
+```python
 文档 / loader
   ↓
 Docling / MinerU / Unstructured (三选一)
@@ -82,7 +78,9 @@ ChromaDB / FAISS
 保存：向量 + 原文 + metadata
 ```
 
-### Loader 读取
+# RAG Process
+
+## Loader 读取
 
 基本可以理解为“读取文件”，但不只是拿到文件路径。通常包括：
 
@@ -93,6 +91,8 @@ ChromaDB / FAISS
 5. 附带一些 metadata，例如文件名、来源、页码
 
 ```py
+# database/create_db.py
+
 from langchain.document_loaders import UnstructuredFileLoader
 from langchain.document_loaders import UnstructuredMarkdownLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -149,9 +149,31 @@ def file_loader(file, loaders: list):
     return
 ```
 
-### TextSplitter 切分
+## TextSplitter 切分
+
+文档切分器 Text Splitters
+
+Refs: https://github.com/linhaishe/FEnotes/blob/main/ai-coding/LangChain/10-RAG.md#234-%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0
+
+① CharacterTextSplitter：Split by character
+
+② RecursiveCharacterTextSplitter：最常用
+
+③ TokenTextSplitter/CharacterTextSplitter：Split by tokens
+
+④ SemanticChunker：语义分块
+
+⑤ HTMLHeaderTextSplitter(了解)
+
+⑥ CodeTextSplitter(了解)
+
+⑦ MarkdownTextSplitter(了解)
 
 ```py
+# database/create_db.py
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 loaders = []
 [file_loader(file, loaders) for file in files]
 docs = []
@@ -165,7 +187,20 @@ text_splitter = RecursiveCharacterTextSplitter(
 split_docs = text_splitter.split_documents(docs)
 ```
 
-### Embedding 向量化
+## Embedding 向量化
+
+常用嵌入模型：
+
+| 模型                     | 机构                   | 描述                                       |
+| ------------------------ | ---------------------- | ------------------------------------------ |
+| `bge-large-zh`           | 北京智源研究院（BAAI） | 开源，向量维度 1024，序列长度 512          |
+| `bge-base-zh`            | BAAI                   | 开源，向量维度 768，序列长度 512           |
+| `bge-small-zh`           | BAAI                   | 开源，向量维度 512，序列长度 512           |
+| `bge-m3`                 | BAAI                   | 开源，多语言，向量维度 1024，序列长度 8192 |
+| `text-embedding-3-small` | OpenAI                 | 多语言，向量维度 1536，序列长度 8192       |
+| `text-embedding-3-large` | OpenAI                 | 多语言，向量维度 3072，序列长度 8192       |
+
+LangChain中针对向量化模型的封装提供了两种接口，一种针对句子的向量化embed_query ，一种针对文档的向量化(embed_documents) 。
 
 **Embedding（嵌入）**：把文本、图片等对象转换成数字表示的方法或过程。
 
@@ -183,9 +218,162 @@ split_docs = text_splitter.split_documents(docs)
 - 转换过程叫 **Embedding**
 - 得到的数字数组叫 **Vector**
 
-### ChromaDB 存储
-### 相似度检索
-### LLM 生成答案
+`get_embedding()` in `embedding/call_embedding.py` 是用来创建 Embedding 模型对象的。
+
+```python
+def get_embedding(embedding: str, ...):
+    if embedding == "m3e":
+        return HuggingFaceEmbeddings(
+            model_name="moka-ai/m3e-base"
+        )
+```
+
+它本身不直接把文档转换成向量，而是返回一个“Embedding 模型”。
+
+真正转换发生在：
+
+```python
+# database/create_db.py
+vectordb = Chroma.from_documents(
+    documents=split_docs,
+    embedding=embeddings
+)
+```
+
+流程是：
+
+```
+get_embedding("m3e")
+→ 创建 m3e Embedding 模型
+→ Chroma.from_documents(...)
+→ 对每个 Document Chunk 调用 Embedding
+→ 生成向量并保存到 ChromaDB
+```
+
+也可以用于查询文本：
+
+```
+embeddings.embed_query("你好")
+```
+
+- `get_embedding()`：获取 Embedding 模型
+- `embed_documents()`：将多个文档转成向量
+- `embed_query()`：将问题转成向量
+- `Chroma`：保存和检索这些向量
+
+基本理解正确，但更准确地说：
+
+```
+Chroma.from_documents(
+    documents=split_docs,
+    embedding=embeddings
+)
+```
+
+`Chroma` 本身负责：
+
+- 接收文档
+- 调用你传入的 `embedding` 模型
+- 保存向量、原文和 metadata
+- 创建向量数据库
+
+真正负责生成向量的是：
+
+```
+embedding=embeddings
+```
+
+例如：
+
+```
+embeddings = HuggingFaceEmbeddings(
+    model_name="moka-ai/m3e-base"
+)
+```
+
+流程是：
+
+```
+split_docs
+↓
+Chroma.from_documents(...)
+↓
+调用 embeddings.embed_documents(...)
+↓
+得到向量
+↓
+保存到 ChromaDB
+```
+
+所以不是 Chroma 内置固定的 Embedding 模型，而是：
+
+> Chroma 提供存储流程，并使用你传入的 Embedding 模型生成向量。
+
+也可以传入 OpenAI Embedding：
+
+```
+embeddings = OpenAIEmbeddings()
+```
+
+或者其他兼容 LangChain Embeddings 接口的模型。
+
+## ChromaDB 存储
+
+向量存储逻辑在：`database/create_db.py`
+
+```python
+# 核心代码：
+vectordb = Chroma.from_documents(
+    documents=split_docs,
+    embedding=embeddings,
+    persist_directory="./vector_db/chroma"
+)
+```
+
+```
+split_docs
+→ Chroma.from_documents()
+→ Embedding 向量化
+→ 保存到 ./vector_db/chroma
+```
+
+随后：
+
+```
+vectordb.persist()
+```
+
+将数据持久化到磁盘。
+
+重新加载已有数据库的位置：
+
+```python
+def load_knowledge_db(path, embeddings):
+    vectordb = Chroma(
+        persist_directory=path,
+        embedding_function=embeddings
+    )
+    return vectordb
+```
+
+注意：当前 `create_db()` 里把路径写死为：
+
+```
+"./vector_db/chroma"
+```
+
+所以传入的 `persist_directory` 参数实际上没有被使用。 short fix 可以改成：
+
+```python
+vectordb = Chroma.from_documents(
+    documents=split_docs,
+    embedding=embeddings,
+    persist_directory=persist_directory
+)
+```
+
+## 相似度检索
+## LLM 生成答案
 
 # tempfile
 
