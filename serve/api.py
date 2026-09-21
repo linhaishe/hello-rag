@@ -2,10 +2,10 @@
 # -*- encoding: utf-8 -*-
 '''
 @File    :   spark_api.py
-@Time    :   2023/09/24 11:00:46
-@Author  :   Logan Zou 
+@Time    :   2026/09/21
+@Author  :   Mia Chen
 @Version :   1.0
-@Contact :   loganzou0421@163.com
+@Contact :   itschenruo@gmail.com
 @License :   (C)Copyright 2017-2018, Liugroup-NLPR-CASIA
 @Desc    :   启动服务为本地 API
 '''

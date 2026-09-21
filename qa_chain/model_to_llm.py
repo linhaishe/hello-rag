@@ -3,7 +3,7 @@ sys.path.append("../llm")
 from llm.wenxin_llm import Wenxin_LLM
 from llm.spark_llm import Spark_LLM
 from llm.zhipuai_llm import ZhipuAILLM
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from llm.call_llm import parse_llm_api_key
 
 

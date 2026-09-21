@@ -1,6 +1,6 @@
-from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
-from langchain.vectorstores import Chroma
+from langchain_core.prompts import PromptTemplate
+from langchain_classic.chains import RetrievalQA
+from langchain_chroma import Chroma
 import sys
 sys.path.append("../")
 from qa_chain.model_to_llm import model_to_llm

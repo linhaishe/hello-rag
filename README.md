@@ -15,12 +15,21 @@ conda activate llm-universe
 pip install -r requirements.txt
 ```
 
+```py
+# 启动服务为本地 API(Fast API)
+uvicorn serve.api:app --reload
+
+# 运行项目
+python run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='./data_base/knowledge_db' -persist_path='./data_base/vector_db'
+
 ```
 python==3.11.15
 langchain==1.4.0
 langchain-community>=0.3
 langsmith>=0.3.45,<1
 ```
+
+`python -m pip freeze > requirements-new.txt`
 
 Mac 是 Apple 芯片（osx-arm64），而 defaults 源里没有适用于 Apple 芯片的 Python 3.9.0，所以创建失败。
 直接执行：
@@ -276,4 +285,3 @@ Document(
     }
 )
 ```
-
