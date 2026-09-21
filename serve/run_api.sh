@@ -1,2 +1,2 @@
-! cd project/serve
+! cd serve
 ! uvicorn api:app --reload
