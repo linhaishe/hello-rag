@@ -54,22 +54,24 @@ serve/run_gradio.py
 ```
 
 ```py
-PDF
- ↓
-Unstructured 解析 PDF 内容
- ↓
-LlamaIndex Document
- ↓
-LlamaIndex Node
- ↓
-Embedding
- ↓
+文档 / loader
+  ↓
+Docling / MinerU / Unstructured (三选一)
+  ↓
+提取标题、段落、表格、公式
+  ↓
+LlamaIndex NodeParser
+  ↓
+切分成 Node / Chunk，并保留 metadata
+  ↓
+Sentence Transformers
+  ↓
+为每个 Chunk 生成 Embedding
+  ↓
 ChromaDB / FAISS
- ↓
-LLM 回答
+  ↓
+保存：向量 + 原文 + metadata
 ```
-
-
 
 ### Loader 读取
 
