@@ -77,5 +77,5 @@ LLM 返回答案
 | Embedding 导入路径 | 已迁移 |
 | 自定义 LLM 基类导入 | 已迁移 |
 | Gradio 参数兼容 | 已移除新版不支持的显示参数 |
-| Chain 调用方式 | 仍需确认是否从 `chain({...})` 改为 `chain.invoke({...})` |
+| Chain 调用方式 | 已改为 `chain.invoke({...})` |
 | 旧版 Chain 行为 | 依赖 `langchain-classic`，后续可改为新版 Runnable 架构 |

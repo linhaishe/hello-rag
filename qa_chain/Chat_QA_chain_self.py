@@ -90,7 +90,7 @@ class Chat_QA_chain_self:
         )
         
         #print(self.llm)
-        result = qa({"question": question,"chat_history": self.chat_history})       #result里有question、chat_history、answer
+        result = qa.invoke({"question": question,"chat_history": self.chat_history})       #result里有question、chat_history、answer
         answer =  result['answer']
         answer = re.sub(r"\\n", '<br/>', answer)
         self.chat_history.append((question,answer)) #更新历史记录

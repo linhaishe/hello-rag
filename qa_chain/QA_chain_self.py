@@ -77,7 +77,7 @@ class QA_chain_self():
         if top_k == None:
             top_k = self.top_k
 
-        result = self.qa_chain({"query": question, "temperature": temperature, "top_k": top_k})
+        result = self.qa_chain.invoke({"query": question, "temperature": temperature, "top_k": top_k})
         answer = result["result"]
         answer = re.sub(r"\\n", '<br/>', answer)
         return answer   
