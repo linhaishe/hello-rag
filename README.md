@@ -35,45 +35,146 @@ langsmith>=0.3.45,<1
 
 ## RAG Process
 
-### 流程
+这个项目的 RAG 分为两条链路：先把文件构建为本地向量库，再用用户问题检索相关内容并交给 LLM 生成答案。
+
+### 1. 文件到向量库：知识库构建链路
+
+```text
+Gradio 上传文件或指定 knowledge_db 目录
+  ↓
+create_db_info()
+  ↓
+create_db()
+  ↓
+file_loader() 按扩展名选择 Loader
+  ↓
+loader.load() 读取文件，得到 Document
+  ↓
+RecursiveCharacterTextSplitter 切分 Document
+  ↓
+get_embedding() 创建 Embedding 模型
+  ↓
+Chroma.from_documents() 为每个 Chunk 生成向量
+  ↓
+保存到 ./vector_db/chroma
+```
+
+具体处理方式：
+
+| 文件类型 | Loader | 作用 |
+| --- | --- | --- |
+| `.pdf` | `PyMuPDFLoader` | 读取 PDF 页面文本和页面 metadata |
+| `.md` | `UnstructuredMarkdownLoader` | 使用 Unstructured 解析 Markdown |
+| `.txt` | `UnstructuredFileLoader` | 读取普通文本 |
+
+`loader.load()` 读取后得到的是 `Document` 列表，每个对象主要包含：
 
 ```python
-文档 / loader
-  ↓
-Docling / MinerU / Unstructured (三选一)
-  ↓
-提取标题、段落、表格、公式
-  ↓
-LlamaIndex NodeParser
-  ↓
-切分成 Node / Chunk，并保留 metadata
-  ↓
-Sentence Transformers
-  ↓
-为每个 Chunk 生成 Embedding
-  ↓
-ChromaDB / FAISS
-  ↓
-保存：向量 + 原文 + metadata
+Document(
+    page_content="文件中的文本",
+    metadata={"source": "文件路径", "page": 1},
+)
 ```
 
-```py
-用户问题
-  ↓
-Sentence Transformers
-  ↓
-把问题转换成 Query Embedding
-  ↓
-ChromaDB / FAISS
-  ↓
-检索相似 Chunk
-  ↓
-可选：Reranker 精排
-  ↓
-拼接 Prompt
-  ↓
-LLM 回答
+接着使用：
+
+```python
+RecursiveCharacterTextSplitter(
+    chunk_size=500,
+    chunk_overlap=150,
+)
 ```
+
+把较长的 `Document` 切分成多个较小的 Chunk。`chunk_overlap=150` 会让相邻 Chunk 保留部分重复文本，降低关键信息刚好被切断的影响。切分后的 Chunk 仍然保留原文的 metadata。
+
+### 2. 向量化和本地存储
+
+`embedding/call_embedding.py` 中的 `get_embedding()` 负责返回 Embedding 模型对象：
+
+```python
+embeddings = get_embedding("m3e")
+# HuggingFaceEmbeddings(model_name="moka-ai/m3e-base")
+```
+
+它本身还没有处理文档。真正的向量化发生在：
+
+```python
+vectordb = Chroma.from_documents(
+    documents=split_docs,
+    embedding=embeddings,
+    persist_directory="./vector_db/chroma",
+)
+```
+
+Chroma 会对每个 Chunk 调用 Embedding 模型的 `embed_documents()`，并保存：
+
+```text
+Chunk 原文 + metadata + 对应向量
+```
+
+当前项目使用本地持久化 ChromaDB。新版 Chroma 在指定 `persist_directory` 后会自动保存，不需要再调用 `vectordb.persist()`。
+
+### 3. 用户问题到最终答案：问答链路
+
+```text
+用户输入问题
+  ↓
+QA_chain_self.answer() 或 Chat_QA_chain_self.answer()
+  ↓
+retriever 查询 ChromaDB
+  ↓
+Embedding 模型将问题转换为 Query Vector
+  ↓
+Chroma 按相似度返回 Top-K 个 Chunk
+  ↓
+format_docs() 拼接检索到的文本
+  ↓
+PromptTemplate 组合 context、question 和 chat_history
+  ↓
+LLM 生成答案
+  ↓
+StrOutputParser 转换为字符串
+  ↓
+Gradio 页面或 API 返回答案
+```
+
+新版 Runnable 链的结构是：
+
+```python
+qa = (
+    {
+        "context": retriever | format_docs,
+        "question": RunnablePassthrough(),
+        "chat_history": format_history,
+    }
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+answer = qa.invoke(question)
+```
+
+这里的 `|` 表示把多个处理步骤连接成一条流水线：
+
+```text
+输入问题
+→ 检索器
+→ Prompt
+→ LLM
+→ 输出解析器
+→ 最终答案
+```
+
+### 4. 单轮和多轮问答的区别
+
+| 模式 | 是否检索向量库 | 是否携带历史对话 | 主要入口 |
+| --- | --- | --- | --- |
+| `Chat with llm` | 否 | 是，使用界面历史拼接 Prompt | `respond()` |
+| `Chat db without history` | 是 | 否 | `QA_chain_self` |
+| `Chat db with history` | 是 | 是 | `Chat_QA_chain_self` |
+
+无论哪种模式，最终生成自然语言答案的都是 LLM。ChromaDB 只负责保存向量和返回相关文档片段，不负责生成答案。
 
 ### Loader 读取
 
@@ -361,6 +462,8 @@ embeddings = OpenAIEmbeddings()
 ### ChromaDB 存储
 
 向量存储逻辑在：`database/create_db.py`
+
+`Chroma.from_documents` 会调用传入的`embedding`模型进行`embedding`
 
 ```python
 # 核心代码：
