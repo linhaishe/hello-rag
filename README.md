@@ -2,12 +2,9 @@
 
 ![img](https://picgocloud.com/m/0c09a55f-684e-4530-8b8b-e6f1daa403f8.png)
 
-# 一、引言
+## 项目背景介绍
 
-## 1、项目背景介绍
-
-是根据datawhale的案例进行的学习记录开发，由于langchain发展过快，这个项目并不会使用原教程里的技术栈版本，会使用近期新的langchain版本。
-这个项目使用的是本地 ChromaDB
+是根据datawhale的案例进行的学习记录开发，由于langchain发展过快，这个项目并不会使用原教程里的技术栈版本，会使用近期新的`langchain 1.4.0`版本，并接入了`gemini api` , `python==3.11.15`, 本地 `ChromaDB`
 
 ```python
 # 创建 Conda 环境
@@ -15,7 +12,7 @@ conda create -n llm-universe python==3.11.15
 # 激活 Conda 环境
 conda activate llm-universe
 # 安装依赖项
-pip install -r requirements.txt
+pip install -r requirements-new.txt
 ```
 
 ```py
@@ -23,7 +20,7 @@ pip install -r requirements.txt
 uvicorn serve.api:app --reload
 
 # 运行项目
-python serve/run_gradio.py -model_name='chatglm_std' -embedding_model='m3e' -db_path='./data_base/knowledge_db' -persist_path='./data_base/vector_db'
+python serve/run_gradio.py
 ```
 ```python
 python==3.11.15
@@ -34,37 +31,11 @@ langsmith>=0.3.45,<1
 
 `python -m pip freeze > requirements-new.txt`
 
-Mac 是 Apple 芯片（osx-arm64），而 defaults 源里没有适用于 Apple 芯片的 Python 3.9.0，所以创建失败。
-直接执行：
-
-```bash
-conda create -n llm-universe -c conda-forge python=3.9
-conda activate llm-universe
-python --version
-```
-
-如果显示类似：`Python 3.9.x` 就成功了。如果项目只要求 `Python 3.9`，不要求必须是 `3.9.0`，这就是最简单的解决办法。
-
-```python
-database/create_db.py
-qa_chain/get_vectordb.py
-qa_chain/QA_chain_self.py
-embedding/call_embedding.py
-serve/run_gradio.py
-
-→ Loader 读取
-→ TextSplitter 切分
-→ Embedding 向量化
-→ ChromaDB 存储
-→ 相似度检索
-→ LLM 生成答案
-```
-
 "../" 是相对于你运行命令时的当前工作目录，而不是相对于当前 .py 文件。
 
-# RAG Process
+## RAG Process
 
-## 流程
+### 流程
 
 ```python
 文档 / loader
@@ -104,7 +75,7 @@ ChromaDB / FAISS
 LLM 回答
 ```
 
-## Loader 读取
+### Loader 读取
 
 基本可以理解为“读取文件”，但不只是拿到文件路径。通常包括：
 
@@ -173,9 +144,16 @@ def file_loader(file, loaders: list):
     return
 ```
 
-## 数据清洗
+### 数据清洗
 
-## TextSplitter 切分
+这个项目暂时还有使用到数据清洗这一步
+
+https://github.com/datawhalechina/llm-universe/blob/main/docs/C3/C3.md#333-%E6%95%B0%E6%8D%AE%E6%B8%85%E6%B4%97
+
+我们期望知识库的数据尽量是有序的、优质的、精简的，因此我们要删除低质量的、甚至影响理解的文本数据。
+可以看到上文中读取的pdf文件不仅将一句话按照原文的分行添加了换行符`\n`，也在原本两个符号中间插入了`\n`，我们可以使用正则表达式匹配并删除掉`\n`。
+
+### TextSplitter 切分
 
 文档切分器 Text Splitters
 
@@ -250,7 +228,7 @@ Document(
 )
 ```
 
-## Embedding 向量化
+### Embedding 向量化
 
 常用嵌入模型：
 
@@ -380,7 +358,7 @@ embeddings = OpenAIEmbeddings()
 
 或者其他兼容 LangChain Embeddings 接口的模型。
 
-## ChromaDB 存储
+### ChromaDB 存储
 
 向量存储逻辑在：`database/create_db.py`
 
@@ -435,7 +413,7 @@ vectordb = Chroma.from_documents(
 )
 ```
 
-## 用户提问/相似度检索
+### 用户提问/相似度检索
 
 `Chat with llm`：问题 → LLM
 
@@ -475,9 +453,41 @@ db_wo_his_btn
 → 返回答案
 ```
 
-## LLM 生成答案
+### LLM 生成答案
 
-# tempfile
+```
+elif provider == "gemini":
+    if api_key is None:
+        api_key = parse_llm_api_key("gemini")
+    llm = ChatGoogleGenerativeAI(
+        model=model,
+        temperature=temperature,
+        google_api_key=api_key,
+    )
+```
+
+```
+qa = (
+    {
+        "context": retriever | RunnableLambda(format_docs),
+        "question": RunnablePassthrough(),
+        "chat_history": RunnableLambda(format_history),
+    }
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+answer = qa.invoke(question)
+answer = re.sub(r"\\n", '<br/>', answer)
+self.chat_history.append((question, answer))  # 更新历史记录
+```
+
+
+
+# QA
+
+## tempfile
 
 程序运行时，系统会创建一个临时文件
 
@@ -489,7 +499,7 @@ with tempfile.NamedTemporaryFile() as file:
     print(file.name)
 ```
 
-# create_db.py
+## create_db.py
 
 ```python
 if not os.path.isfile(file):
@@ -531,7 +541,7 @@ for f in names:
 # data/sub
 ```
 
-# extend 和 append
+## extend 和 append
 
 ```py
 items = [1, 2]
@@ -545,7 +555,7 @@ items.extend([3, 4])
 print(items) # [1, 2, 3, 4]
 ```
 
-# Runnable
+## Runnable
 
 Runnable 可以理解成：
 
