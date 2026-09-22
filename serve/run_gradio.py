@@ -1,19 +1,19 @@
 # 导入必要的库
 
-import sys
-import os                # 用于操作系统相关的操作，例如读取环境变量
-
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
-import IPython.display   # 用于在 IPython 环境中显示数据，例如图片
-import io                # 用于处理流式数据（例如文件流）
-import gradio as gr
-from dotenv import load_dotenv, find_dotenv
-from llm.call_llm import get_completion
-from database.create_db import create_db_info
-from qa_chain.Chat_QA_chain_self import Chat_QA_chain_self
-from qa_chain.QA_chain_self import QA_chain_self
 import re
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from qa_chain.QA_chain_self import QA_chain_self
+from qa_chain.Chat_QA_chain_self import Chat_QA_chain_self
+from database.create_db import create_db_info
+from llm.call_llm import get_completion, LLM_MODEL_DICT
+from dotenv import load_dotenv, find_dotenv
+import gradio as gr
+import io                # 用于处理流式数据（例如文件流）
+import IPython.display   # 用于在 IPython 环境中显示数据，例如图片
 # 导入 dotenv 库的函数
 # dotenv 允许您从 .env 文件中读取环境变量
 # 这在开发时特别有用，可以避免将敏感信息（如API密钥）硬编码到代码中
@@ -21,16 +21,8 @@ import re
 # 寻找 .env 文件并加载它的内容
 # 这允许您使用 os.environ 来读取在 .env 文件中设置的环境变量
 _ = load_dotenv(find_dotenv())
-LLM_MODEL_DICT = {
-    "openai": ["gpt-3.5-turbo", "gpt-3.5-turbo-16k-0613", "gpt-3.5-turbo-0613", "gpt-4", "gpt-4-32k"],
-    "wenxin": ["ERNIE-Bot", "ERNIE-Bot-4", "ERNIE-Bot-turbo"],
-    "xinhuo": ["Spark-1.5", "Spark-2.0"],
-    "zhipuai": ["chatglm_pro", "chatglm_std", "chatglm_lite"]
-}
-
-
-LLM_MODEL_LIST = sum(list(LLM_MODEL_DICT.values()),[])
-INIT_LLM = "chatglm_std"
+LLM_MODEL_LIST = sum(list(LLM_MODEL_DICT.values()), [])
+INIT_LLM = "gemini-3.1-flash-lite"
 EMBEDDING_MODEL_LIST = ['zhipuai', 'openai', 'm3e']
 INIT_EMBEDDING_MODEL = "m3e"
 DEFAULT_DB_PATH = "./knowledge_db"
@@ -40,8 +32,33 @@ DATAWHALE_AVATAR_PATH = "./figures/datawhale_avatar.png"
 AIGC_LOGO_PATH = "./figures/aigc_logo.png"
 DATAWHALE_LOGO_PATH = "./figures/datawhale_logo.png"
 
+def messages_to_tuples(messages):
+    history = []
+    question = None
+    for message in messages or []:
+        if message["role"] == "user":
+            question = message["content"]
+        elif message["role"] == "assistant" and question is not None:
+            history.append((question, message["content"]))
+            question = None
+    return history
+
+
+def tuples_to_messages(history):
+    return [
+        message
+        for question, answer in history
+        for message in (
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": answer},
+        )
+    ]
+
+
 def get_model_by_platform(platform):
     return LLM_MODEL_DICT.get(platform, "")
+
+
 class Model_center():
     """
     存储问答 Chain 的对象 
@@ -49,6 +66,7 @@ class Model_center():
     - chat_qa_chain_self: 以 (model, embedding) 为键存储的带历史记录的问答链。
     - qa_chain_self: 以 (model, embedding) 为键存储的不带历史记录的问答链。
     """
+
     def __init__(self):
         self.chat_qa_chain_self = {}
         self.qa_chain_self = {}
@@ -57,23 +75,25 @@ class Model_center():
         """
         调用带历史记录的问答链进行回答
         """
+        chat_history = messages_to_tuples(chat_history)
         if question == None or len(question) < 1:
-            return "", chat_history
+            return "", tuples_to_messages(chat_history)
         try:
             if (model, embedding) not in self.chat_qa_chain_self:
                 self.chat_qa_chain_self[(model, embedding)] = Chat_QA_chain_self(model=model, temperature=temperature,
-                                                                                    top_k=top_k, chat_history=chat_history, file_path=file_path, persist_path=persist_path, embedding=embedding)
+                                                                                 top_k=top_k, chat_history=chat_history, file_path=file_path, persist_path=persist_path, embedding=embedding)
             chain = self.chat_qa_chain_self[(model, embedding)]
-            return "", chain.answer(question=question, temperature=temperature, top_k=top_k)
+            return "", tuples_to_messages(chain.answer(question=question, temperature=temperature, top_k=top_k))
         except Exception as e:
-            return e, chat_history
+            return e, tuples_to_messages(chat_history)
 
     def qa_chain_self_answer(self, question: str, chat_history: list = [], model: str = "openai", embedding="openai", temperature: float = 0.0, top_k: int = 4, file_path: str = DEFAULT_DB_PATH, persist_path: str = DEFAULT_PERSIST_PATH):
         """
         调用不带历史记录的问答链进行回答
         """
+        chat_history = messages_to_tuples(chat_history)
         if question == None or len(question) < 1:
-            return "", chat_history
+            return "", tuples_to_messages(chat_history)
         try:
             if (model, embedding) not in self.qa_chain_self:
                 self.qa_chain_self[(model, embedding)] = QA_chain_self(model=model, temperature=temperature,
@@ -81,9 +101,9 @@ class Model_center():
             chain = self.qa_chain_self[(model, embedding)]
             chat_history.append(
                 (question, chain.answer(question, temperature, top_k)))
-            return "", chat_history
+            return "", tuples_to_messages(chat_history)
         except Exception as e:
-            return e, chat_history
+            return e, tuples_to_messages(chat_history)
 
     def clear_history(self):
         if len(self.chat_qa_chain_self) > 0:
@@ -116,7 +136,6 @@ def format_chat_prompt(message, chat_history):
     return prompt
 
 
-
 def respond(message, chat_history, llm, history_len=3, temperature=0.1, max_tokens=2048):
     """
     该函数用于生成机器人的回复。
@@ -129,8 +148,9 @@ def respond(message, chat_history, llm, history_len=3, temperature=0.1, max_toke
     "": 空字符串表示没有内容需要显示在界面上，可以替换为真正的机器人回复。
     chat_history: 更新后的聊天历史记录
     """
+    chat_history = messages_to_tuples(chat_history)
     if message == None or len(message) < 1:
-            return "", chat_history
+        return "", tuples_to_messages(chat_history)
     try:
         # 限制 history 的记忆长度
         chat_history = chat_history[-history_len:] if history_len > 0 else []
@@ -144,27 +164,32 @@ def respond(message, chat_history, llm, history_len=3, temperature=0.1, max_toke
         # 将用户的消息和机器人的回复加入到聊天历史记录中。
         chat_history.append((message, bot_message))
         # 返回一个空字符串和更新后的聊天历史记录（这里的空字符串可以替换为真正的机器人回复，如果需要显示在界面上）。
-        return "", chat_history
+        return "", tuples_to_messages(chat_history)
     except Exception as e:
-        return e, chat_history
+        return e, tuples_to_messages(chat_history)
 
 
 model_center = Model_center()
 
 block = gr.Blocks()
 with block as demo:
-    with gr.Row(equal_height=True):           
-        gr.Image(value=AIGC_LOGO_PATH, scale=1, min_width=10, show_label=False, container=False)
-   
+    with gr.Row(equal_height=True):
+        gr.Image(value=AIGC_LOGO_PATH, scale=1, min_width=10,
+                 show_label=False, container=False)
+
         with gr.Column(scale=2):
             gr.Markdown("""<h1><center>动手学大模型应用开发</center></h1>
                 <center>LLM-UNIVERSE</center>
                 """)
-        gr.Image(value=DATAWHALE_LOGO_PATH, scale=1, min_width=10, show_label=False, container=False)
+        gr.Image(value=DATAWHALE_LOGO_PATH, scale=1,
+                 min_width=10, show_label=False, container=False)
 
     with gr.Row():
         with gr.Column(scale=4):
-            chatbot = gr.Chatbot(height=400, avatar_images=(AIGC_AVATAR_PATH, DATAWHALE_AVATAR_PATH))
+            chatbot = gr.Chatbot(
+                height=400,
+                avatar_images=(AIGC_AVATAR_PATH, DATAWHALE_AVATAR_PATH),
+            )
             # 创建一个文本框组件，用于输入 prompt。
             msg = gr.Textbox(label="Prompt/问题")
 

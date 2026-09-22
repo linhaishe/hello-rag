@@ -542,3 +542,175 @@ items.extend([3, 4])
 
 print(items) # [1, 2, 3, 4]
 ```
+
+# Runnable
+
+Runnable 可以理解成：
+
+> 一个“可以被调用的处理步骤”，并且多个步骤可以通过 `|` 连接成流水线。前一个的输出是后一个的输入/参数
+
+```py
+qa = (
+    {
+        "context": retriever | RunnableLambda(format_docs),
+        "question": RunnablePassthrough(),
+        "chat_history": RunnableLambda(format_history),
+    }
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+answer = qa.invoke(question)
+```
+
+最简单的例子：
+
+```py
+from langchain_core.runnables import RunnableLambda
+
+double = RunnableLambda(lambda x: x * 2)
+
+double.invoke(3)
+# 6
+```
+
+### `|` 是什么？
+
+```
+chain = step1 | step2 | step3
+```
+
+表示：
+
+```
+输入
+→ step1
+→ step2
+→ step3
+→ 输出
+```
+
+调用时只需要：
+
+```
+chain.invoke(input)
+```
+
+不是每个步骤都手动调用。
+
+### 你项目里的 Runnable
+
+```
+qa = (
+    {
+        "context": retriever | RunnableLambda(format_docs),
+        "question": RunnablePassthrough(),
+        "chat_history": RunnableLambda(format_history),
+    }
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+```
+
+调用：
+
+```
+answer = qa.invoke(question)
+```
+
+内部流程：
+
+```
+问题
+├─ retriever：查询 ChromaDB
+│    ↓
+│  format_docs：整理检索结果
+│
+├─ RunnablePassthrough：原样保留问题
+│
+└─ format_history：整理聊天历史
+        ↓
+得到 prompt 所需的三个变量
+        ↓
+PromptTemplate
+        ↓
+LLM
+        ↓
+StrOutputParser
+        ↓
+字符串答案
+```
+
+这个字典：
+
+```
+{
+    "context": ...,
+    "question": ...,
+    "chat_history": ...
+}
+```
+
+不是普通的数据收集，而是 Runnable Mapping。三个分支会根据同一个输入生成 Prompt 的变量。
+
+### 常见 Runnable
+
+```
+RunnableLambda(func)
+```
+
+把普通 Python 函数包装成 Runnable。
+
+```
+RunnablePassthrough()
+```
+
+原样返回输入。
+
+```
+prompt
+```
+
+PromptTemplate 本身也是 Runnable。
+
+```
+llm
+```
+
+聊天模型本身也是 Runnable。
+
+```
+StrOutputParser()
+```
+
+把模型输出转换成字符串。
+
+`Runnable` 统一提供：
+
+```
+.invoke(input)       # 同步调用
+.ainvoke(input)      # 异步调用
+.batch(inputs)       # 批量调用
+.stream(input)       # 流式输出
+```
+
+官方文档中的 RAG 示例也使用了类似结构：`retriever | format_docs`、`RunnablePassthrough()`，再通过 `chain.invoke(...)` 执行整条链。[LangChain Runnable 示例](https://api.python.langchain.com/en/latest/community/retrievers/langchain_community.retrievers.tavily_search_api.TavilySearchAPIRetriever.html)
+
+推荐阅读顺序：
+
+1. [Runnable 接口与基本调用](https://python.langchain.com/docs/concepts/runnables/)
+2. [RunnablePassthrough 和 RunnableLambda](https://python.langchain.com/docs/how_to/passthrough/)
+3. [Runnable 与 LCEL 管道表达式](https://python.langchain.com/docs/concepts/lcel/)
+4. [LangChain RAG Runnable 示例](https://python.langchain.com/docs/tutorials/rag/)
+5. [Runnable 的批量、异步和流式调用](https://python.langchain.com/docs/concepts/runnables/#invoke)
+
+建议你先掌握这条核心模式：
+
+```
+chain = input_mapper | prompt | llm | output_parser
+result = chain.invoke(input)
+```
+
+这基本就是新版 LangChain 的核心使用方式。
