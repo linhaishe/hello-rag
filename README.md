@@ -5,6 +5,7 @@
 ## 1、项目背景介绍
 
 是根据datawhale的案例进行的学习记录开发，由于langchain发展过快，这个项目并不会使用原教程里的技术栈版本，会使用近期新的langchain版本。
+这个项目使用的是本地 ChromaDB
 
 ```python
 # 创建 Conda 环境
@@ -58,6 +59,11 @@ serve/run_gradio.py
 ```
 
 "../" 是相对于你运行命令时的当前工作目录，而不是相对于当前 .py 文件。
+
+# RAG Process
+
+## 流程
+
 ```python
 文档 / loader
   ↓
@@ -78,7 +84,23 @@ ChromaDB / FAISS
 保存：向量 + 原文 + metadata
 ```
 
-# RAG Process
+```py
+用户问题
+  ↓
+Sentence Transformers
+  ↓
+把问题转换成 Query Embedding
+  ↓
+ChromaDB / FAISS
+  ↓
+检索相似 Chunk
+  ↓
+可选：Reranker 精排
+  ↓
+拼接 Prompt
+  ↓
+LLM 回答
+```
 
 ## Loader 读取
 
@@ -149,6 +171,8 @@ def file_loader(file, loaders: list):
     return
 ```
 
+## 数据清洗
+
 ## TextSplitter 切分
 
 文档切分器 Text Splitters
@@ -169,6 +193,15 @@ Refs: https://github.com/linhaishe/FEnotes/blob/main/ai-coding/LangChain/10-RAG.
 
 ⑦ MarkdownTextSplitter(了解)
 
+- RecursiveCharacterTextSplitter(): 按字符串分割文本，递归地尝试按不同的分隔符进行分割文本。
+- CharacterTextSplitter(): 按字符来分割文本。
+- MarkdownHeaderTextSplitter(): 基于指定的标题来分割markdown 文件。
+- TokenTextSplitter(): 按token来分割文本。
+- SentenceTransformersTokenTextSplitter(): 按token来分割文本
+- Language(): 用于 CPP、Python、Ruby、Markdown 等。
+- NLTKTextSplitter(): 使用 NLTK（自然语言工具包）按句子分割文本。
+- SpacyTextSplitter(): 使用 Spacy按句子的切割文本。
+
 ```py
 # database/create_db.py
 
@@ -181,10 +214,38 @@ for loader in loaders:
     if loader is not None:
         docs.extend(loader.load())
 # 创建“切分规则”
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500, chunk_overlap=150)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
 # 切分文档
 split_docs = text_splitter.split_documents(docs)
+```
+
+切分文本、得到切分后的文档、准备 Embedding 模型
+
+```py
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
+split_docs = text_splitter.split_documents(docs)
+```
+
+`text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)`
+
+创建文本切分器：
+
+- `chunk_size` 每个文本块最多约 `500` 个字符
+- `chunk_overlap` 相邻文本块重叠 `150` 个字符
+- 重叠部分可以避免上下文在切分处丢失。
+
+`split_docs = text_splitter.split_documents(docs)`
+
+把原始文档列表 `docs` 切分成更小的文档块。`split_docs` 仍然是 `Document` 列表，每个对象通常包含：
+
+```py
+Document(
+    page_content="切分后的文本",
+    metadata={
+        "source": "文件路径",
+        "page": 1
+    }
+)
 ```
 
 ## Embedding 向量化
@@ -372,7 +433,46 @@ vectordb = Chroma.from_documents(
 )
 ```
 
-## 相似度检索
+## 用户提问/相似度检索
+
+`Chat with llm`：问题 → LLM
+
+`Chat db without history`：问题 → 向量检索 → LLM
+
+`Chat db with history`：问题 + 历史 → 向量检索 → LLM
+
+| 按钮                    | 是否查向量库 | 用途                 |
+| ----------------------- | ------------ | -------------------- |
+| Chat with llm           | 否           | 普通知识问答         |
+| Chat db without history | 是           | 基于知识库的单轮问答 |
+| Chat db with history    | 是           | 基于知识库的多轮问答 |
+
+查寻流程
+
+```py
+点击 Chat db without history
+→ QA_chain_self
+→ get_vectordb()
+→ Chroma 加载向量库
+→ retriever.invoke(question)
+→ 找到相关文档
+→ Prompt + 上下文
+→ LLM
+→ 返回答案
+```
+
+代码路径大致是：
+
+```
+db_wo_his_btn
+→ qa_chain_self_answer()
+→ QA_chain_self.answer()
+→ retriever
+→ self.qa_chain.invoke()
+→ self.llm
+→ 返回答案
+```
+
 ## LLM 生成答案
 
 # tempfile
@@ -441,35 +541,4 @@ items = [1, 2]
 items.extend([3, 4])
 
 print(items) # [1, 2, 3, 4]
-```
-
-# 切分文档
-
-切分文本、得到切分后的文档、准备 Embedding 模型
-
-```py
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
-split_docs = text_splitter.split_documents(docs)
-```
-
-`text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)`
-
-创建文本切分器：
-
-- `chunk_size` 每个文本块最多约 `500` 个字符
-- `chunk_overlap` 相邻文本块重叠 `150` 个字符
-- 重叠部分可以避免上下文在切分处丢失。
-
-`split_docs = text_splitter.split_documents(docs)`
-
-把原始文档列表 `docs` 切分成更小的文档块。`split_docs` 仍然是 `Document` 列表，每个对象通常包含：
-
-```py
-Document(
-    page_content="切分后的文本",
-    metadata={
-        "source": "文件路径",
-        "page": 1
-    }
-)
 ```

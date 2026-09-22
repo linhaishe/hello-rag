@@ -96,18 +96,7 @@ def create_db(files=DEFAULT_DB_PATH, persist_directory=DEFAULT_PERSIST_PATH, emb
     persist_directory=persist_directory  # 允许我们将persist_directory目录保存到磁盘上
     ) 
 
-    vectordb.persist()
     return vectordb
-
-
-def presit_knowledge_db(vectordb):
-    """
-    该函数用于持久化向量数据库。
-
-    参数:
-    vectordb: 要持久化的向量数据库。
-    """
-    vectordb.persist()
 
 
 def load_knowledge_db(path, embeddings):
