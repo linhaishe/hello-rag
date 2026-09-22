@@ -1,5 +1,7 @@
 # 个人知识库助手项目
 
+![img](https://picgocloud.com/m/0c09a55f-684e-4530-8b8b-e6f1daa403f8.png)
+
 # 一、引言
 
 ## 1、项目背景介绍
