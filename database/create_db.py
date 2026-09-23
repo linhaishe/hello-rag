@@ -1,6 +1,9 @@
 import os
 import sys
 import re
+import tempfile
+from typing import Any
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import tempfile
 from dotenv import load_dotenv, find_dotenv
@@ -12,51 +15,81 @@ from langchain_community.document_loaders import (
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+
 # 首先实现基本配置
 
 DEFAULT_DB_PATH = "./knowledge_db"
 DEFAULT_PERSIST_PATH = "./vector_db"
 
+
 # 获取文件路径
 def get_files(dir_path):
-    file_list = [] # [database/sub/b.pdf]
+    file_list = []  # [database/sub/b.pdf]
     for filepath, dirnames, filenames in os.walk(dir_path):
         for filename in filenames:
             file_list.append(os.path.join(filepath, filename))
     return file_list
 
 
-def file_loader(file, loaders):
+def file_loader(
+    file: str | tempfile._TemporaryFileWrapper,
+    loaders: list[Any],
+) -> None:
+    """
+    根据文件类型创建对应的文档加载器，并添加到 loaders 列表。
+
+    Args:
+        file: 文件路径、目录路径或 Gradio 上传产生的临时文件对象。
+        loaders: 用于保存文档加载器对象的列表。
+
+    Returns:
+        None: 函数直接修改 loaders 列表，不返回结果。
+    """
     # 判断 file 是否为临时文件对象(程序运行期间临时创建的文件，用完后通常会自动删除),项目中的 Gradio 上传文件可能会先保存成临时文件，因此代码需要取出真实路径,转换后，file 就从“临时文件对象”变成了普通文件路径字符串
     if isinstance(file, tempfile._TemporaryFileWrapper):
         file = file.name
-    
+
     # 判断 file 是否是一个真实存在的文件
     if not os.path.isfile(file):
-        [file_loader(os.path.join(file, f), loaders) for f in  os.listdir(file)]
+        [file_loader(os.path.join(file, f), loaders) for f in os.listdir(file)]
         return
-    file_type = file.split('.')[-1]
-    if file_type == 'pdf':
+    file_type = file.split(".")[-1]
+    if file_type == "pdf":
         #  loaders.append 先把“文件加载器对象”放进列表
         # 输出类似于 <class 'langchain.document_loaders.pdf.PyMuPDFLoader'> 记录了路径和读取的方法
         loaders.append(PyMuPDFLoader(file))
-    elif file_type == 'md':
-        pattern = r"不存在|风控" # 检查 Markdown 文件路径中是否包含“不存在”或“风控”
+    elif file_type == "md":
+        pattern = r"不存在|风控"  # 检查 Markdown 文件路径中是否包含“不存在”或“风控”
         match = re.search(pattern, file)
         if not match:
             loaders.append(UnstructuredMarkdownLoader(file))
-    elif file_type == 'txt':
+    elif file_type == "txt":
         loaders.append(UnstructuredFileLoader(file))
     return
 
 
-def create_db_info(files=DEFAULT_DB_PATH, embeddings="openai", persist_directory=DEFAULT_PERSIST_PATH):
-    if embeddings == 'openai' or embeddings == 'm3e' or embeddings =='zhipuai':
+def create_db_info(
+    files=DEFAULT_DB_PATH, embeddings="openai", persist_directory=DEFAULT_PERSIST_PATH
+):
+    """
+    创建向量数据库。
+
+    Args:
+        files: 待处理的文件路径或知识库目录。
+        embeddings: 使用的 Embedding 模型，可选 "openai"、"m3e" 或 "zhipuai"。
+        persist_directory: 向量数据库的持久化保存目录。
+
+    Returns:
+        str: 返回空字符串，用于清空 Gradio 的提示信息。
+    """
+    if embeddings == "openai" or embeddings == "m3e" or embeddings == "zhipuai":
         vectordb = create_db(files, persist_directory, embeddings)
     return ""
 
 
-def create_db(files=DEFAULT_DB_PATH, persist_directory=DEFAULT_PERSIST_PATH, embeddings="openai"):
+def create_db(
+    files=DEFAULT_DB_PATH, persist_directory=DEFAULT_PERSIST_PATH, embeddings="openai"
+):
     """
     该函数用于加载 PDF/md/txt 文件，切分文档，生成文档的嵌入向量，创建向量数据库。
 
@@ -79,22 +112,28 @@ def create_db(files=DEFAULT_DB_PATH, persist_directory=DEFAULT_PERSIST_PATH, emb
     for loader in loaders:
         if loader is not None:
             docs.extend(loader.load())
+
     # 创建“切分规则”
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500, chunk_overlap=150)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
+
     # 切分文档
     split_docs = text_splitter.split_documents(docs)
-    # 如果传入的本来就是模型对象，就不再重复创建。
-    if type(embeddings) == str:
+
+    # 将 Embedding 模型名称转换为可调用的 Embedding 模型对象。
+    # 如果传入的已经是模型对象，则直接复用，不重复创建。
+    # 本地模型对象
+    # HuggingFaceEmbeddings(model_name="moka-ai/m3e-base")
+    if isinstance(embeddings, str):
         embeddings = get_embedding(embedding=embeddings)
+
     # 定义持久化路径
-    persist_directory = './vector_db/chroma'
+    persist_directory = "./vector_db/chroma"
     # 加载数据库
     vectordb = Chroma.from_documents(
-    documents=split_docs,
-    embedding=embeddings,
-    persist_directory=persist_directory  # 允许我们将persist_directory目录保存到磁盘上
-    ) 
+        documents=split_docs,
+        embedding=embeddings,
+        persist_directory=persist_directory,  # 允许我们将persist_directory目录保存到磁盘上
+    )
 
     return vectordb
 
@@ -110,10 +149,7 @@ def load_knowledge_db(path, embeddings):
     返回:
     vectordb: 加载的数据库。
     """
-    vectordb = Chroma(
-        persist_directory=path,
-        embedding_function=embeddings
-    )
+    vectordb = Chroma(persist_directory=path, embedding_function=embeddings)
     return vectordb
 
 

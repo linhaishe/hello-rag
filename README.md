@@ -40,7 +40,7 @@ langsmith>=0.3.45,<1
 ### 1. 文件到向量库：知识库构建链路
 
 ```text
-Gradio 上传文件或指定 knowledge_db 目录
+Gradio 上传文件或指定 knowledge_db 目录 init_db = gr.Button("知识库文件向量化")
   ↓
 create_db_info()
   ↓
@@ -530,6 +530,12 @@ vectordb = Chroma.from_documents(
 | Chat db without history | 是           | 基于知识库的单轮问答 |
 | Chat db with history    | 是           | 基于知识库的多轮问答 |
 
+| 选项      | 类型                 | 运行位置 | 是否需要 API Key | 特点                                             |
+| --------- | -------------------- | -------- | ---------------- | ------------------------------------------------ |
+| `openai`  | OpenAI Embedding API | 云端     | 需要             | 效果稳定，接入简单，但按调用量收费               |
+| `m3e`     | M3E 本地向量模型     | 本地     | 不需要           | 适合中文和离线场景，但需要下载模型并占用本地资源 |
+| `zhipuai` | 智谱 Embedding API   | 云端     | 需要             | 中文支持较好，依赖智谱 API 和网络                |
+
 查寻流程
 
 ```py
@@ -602,7 +608,7 @@ with tempfile.NamedTemporaryFile() as file:
     print(file.name)
 ```
 
-## create_db.py
+## create_db()
 
 ```python
 if not os.path.isfile(file):
@@ -829,3 +835,20 @@ result = chain.invoke(input)
 ```
 
 这基本就是新版 LangChain 的核心使用方式。
+
+## Gradio
+
+```python
+llm_btn.click(
+   respond,
+   inputs=[msg, chatbot, llm, history_len, temperature],
+   outputs=[msg, chatbot],
+   show_progress="minimal",
+)
+```
+
+`outputs` 表示：函数执行完成后，把返回值显示或写回哪些 Gradio 组件。
+
+`inputs` 不是自定义参数，而是 Gradio 的固定配置项。
+
+它的作用是：告诉 Gradio，点击按钮时，要把哪些界面组件的值传给函数。
