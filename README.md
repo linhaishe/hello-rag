@@ -1216,6 +1216,72 @@ chain.chat_history
 
 补充一点：当前代码中，`history_len` 并没有真正限制页面展示数量；它主要应该用于限制传给 Prompt 的历史记录。当前实现实际可能会把缓存对象中的全部历史都用于回答。
 
+Demo 这样处理很常见，但生产系统通常不会只依赖这种内存缓存。
+
+常见区别：
+
+| Demo 做法                       | 实际业务做法                   |
+| ------------------------------- | ------------------------------ |
+| 用 `self.chat_history` 保存历史 | 按用户、会话 ID 保存历史       |
+| 直接返回完整聊天记录            | 前端可以增量追加，或分页加载   |
+| 字典缓存问答链对象              | 使用有过期时间和容量限制的缓存 |
+| 历史记录保存在进程内存          | 保存到 Redis、数据库或消息存储 |
+| 所有历史都传给 Prompt           | 只传最近几轮，或先总结历史     |
+| 进程重启后历史丢失              | 历史可以恢复                   |
+| 多用户容易混在一起              | 每个用户独立隔离               |
+
+生产环境一般会区分三种数据：
+
+```
+前端展示历史
+    ↓
+会话历史存储
+    ↓
+提供给 Prompt 的上下文
+```
+
+例如：
+
+```
+def answer(session_id: str, question: str):
+    history = history_store.get(session_id)
+
+    recent_history = history[-5:]
+
+    answer = qa_chain.invoke({
+        "question": question,
+        "chat_history": recent_history,
+    })
+
+    history_store.append(session_id, question, answer)
+
+    return answer
+```
+
+当前 Demo 的主要问题是：
+
+```
+self.chat_qa_chain_self[(model, embedding)]
+```
+
+只按模型和 Embedding 区分，没有按用户或会话区分。多个用户使用相同模型时，可能共用同一个 `chat_history`，导致对话串线。
+
+所以实际工程通常至少要改成：
+
+```
+self.chat_qa_chain_self[(session_id, model, embedding)]
+```
+
+更进一步则是：
+
+- 聊天历史放 Redis 或数据库；
+- 只取最近几轮历史；
+- 使用摘要压缩更早的对话；
+- 对缓存设置过期时间；
+- 前端按消息 ID 增量更新。
+
+这个 Demo 的思路适合学习 Gradio 和 RAG 流程，但不适合直接作为多用户生产架构。
+
 ## rich
 
 你想用的应该是 `rich`，它可以格式化终端输出。
