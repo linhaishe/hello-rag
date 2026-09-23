@@ -15,6 +15,7 @@
 | 对话记忆 | `langchain.memory` | 手动传递 `chat_history` | `qa_chain/Chat_QA_chain_self.py` |
 | Chroma 向量库 | `langchain.vectorstores.Chroma` | `langchain_chroma.Chroma` | `database/create_db.py`、`qa_chain/` |
 | OpenAI 模型 | `langchain.chat_models.ChatOpenAI` | `langchain_openai.ChatOpenAI` | `qa_chain/model_to_llm.py` |
+| Gemini 模型 | 未接入 | `langchain_google_genai.ChatGoogleGenerativeAI` | `qa_chain/model_to_llm.py`、`llm/call_llm.py` |
 | OpenAI Embedding | `langchain.embeddings.openai` | `langchain_openai` | `embedding/`、`qa_chain/` |
 | HuggingFace Embedding | `langchain.embeddings.huggingface` | `langchain_huggingface` | `embedding/call_embedding.py` |
 | 自定义 LLM 基类 | `langchain.llms.base.LLM` | `langchain_core.language_models.llms.LLM` | `llm/` |
@@ -33,6 +34,7 @@
 | HuggingFace 集成 | `langchain` 内置 | `langchain-huggingface` |
 | Community 组件 | `langchain` 内置 | `langchain-community` |
 | 文本切分器 | `langchain` 内置 | `langchain-text-splitters` |
+| Gemini 集成 | 已接入 | `langchain-google-genai`、`google-genai` |
 
 ## RAG 数据流
 
@@ -67,6 +69,17 @@ LLM 返回答案
 | 示例配置 | 使用 `.env.example` |
 | 向量库路径 | 使用项目内相对路径，例如 `./vector_db/chroma` |
 | Python 环境 | 推荐 Python 3.11 的独立 Conda 环境 |
+| Gemini API Key | 从本地 `.env` 读取 `GEMINI_API_KEY`，通过 `ChatGoogleGenerativeAI` 调用 |
+
+## 新增 Gemini API
+
+项目新增 Gemini 模型支持：
+
+- 在 `llm/call_llm.py` 的模型映射中加入 `gemini-3.1-flash-lite`。
+- 在 `qa_chain/model_to_llm.py` 中通过 `ChatGoogleGenerativeAI` 创建 Gemini 对话模型。
+- Gemini API Key 从 `.env` 读取，也支持通过 `api_key` 参数传入。
+- Gemini 与现有 OpenAI、文心、星火和智谱模型共用统一的模型选择与问答链路。
+- 当前接入的是 Gemini 生成模型，Gemini Embedding API 尚未接入；项目仍使用本地 Embedding 模型构建向量。
 
 ## 尚未完成的迁移
 
@@ -79,3 +92,5 @@ LLM 返回答案
 | Gradio 参数兼容 | 已移除新版不支持的显示参数 |
 | Chain 调用方式 | 已改为 `chain.invoke({...})` |
 | Chain 行为 | 已迁移到 Runnable 组合：Retriever → Prompt → LLM → OutputParser |
+| Gemini API 集成 | 已完成：模型映射、API Key 读取、LangChain ChatModel 接入 |
+| Gemini Embedding API | 尚未接入，当前使用本地 Embedding 模型 |
