@@ -9,12 +9,14 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 import sys
 import os
+from rich.pretty import pprint
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class Chat_QA_chain_self:
-    """"
-    带历史记录的问答链  
+    """ "
+    带历史记录的问答链
     - model：调用的模型名称
     - temperature：温度系数，控制生成的随机性
     - top_k：返回检索的前k个相似文档
@@ -27,10 +29,24 @@ class Chat_QA_chain_self:
     - Spark_api_secret：星火秘钥
     - Wenxin_secret_key：文心秘钥
     - embeddings：使用的embedding模型
-    - embedding_key：使用的embedding模型的秘钥（智谱或者OpenAI）  
+    - embedding_key：使用的embedding模型的秘钥（智谱或者OpenAI）
     """
 
-    def __init__(self, model: str, temperature: float = 0.0, top_k: int = 4, chat_history: list = [], file_path: str = None, persist_path: str = None, appid: str = None, api_key: str = None, Spark_api_secret: str = None, Wenxin_secret_key: str = None, embedding="openai", embedding_key: str = None):
+    def __init__(
+        self,
+        model: str,
+        temperature: float = 0.0,
+        top_k: int = 4,
+        chat_history: list = [],
+        file_path: str = None,
+        persist_path: str = None,
+        appid: str = None,
+        api_key: str = None,
+        Spark_api_secret: str = None,
+        Wenxin_secret_key: str = None,
+        embedding="openai",
+        embedding_key: str = None,
+    ):
         self.model = model
         self.temperature = temperature
         self.top_k = top_k
@@ -46,7 +62,8 @@ class Chat_QA_chain_self:
         self.embedding_key = embedding_key
 
         self.vectordb = get_vectordb(
-            self.file_path, self.persist_path, self.embedding, self.embedding_key)
+            self.file_path, self.persist_path, self.embedding, self.embedding_key
+        )
 
     def clear_history(self):
         "清空历史记录"
@@ -61,27 +78,35 @@ class Chat_QA_chain_self:
         输出：返回最近 history_len 次对话
         """
         n = len(self.chat_history)
-        return self.chat_history[n-history_len:]
+        return self.chat_history[n - history_len :]
 
     def answer(self, question: str = None, temperature=None, top_k=4):
-        """"
+        """
         核心方法，调用问答链
-        arguments: 
+        arguments:
         - question：用户提问
         """
 
         if not question:
-            return "", self.chat_history # 返回空消息 + 聊天历史
+            return "", self.chat_history  # 返回空消息 + 聊天历史
 
         if temperature == None:
             temperature = self.temperature
-        llm = model_to_llm(self.model, temperature, self.appid,
-                           self.api_key, self.Spark_api_secret, self.Wenxin_secret_key)
+        llm = model_to_llm(
+            self.model,
+            temperature,
+            self.appid,
+            self.api_key,
+            self.Spark_api_secret,
+            self.Wenxin_secret_key,
+        )
 
         # self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-        retriever = self.vectordb.as_retriever(search_type="similarity",
-                                               search_kwargs={'k': top_k})  # 默认similarity，k=4
+        # “创建检索器”，还没有真正开始检索
+        retriever = self.vectordb.as_retriever(
+            search_type="similarity", search_kwargs={"k": top_k}
+        )  # 默认similarity，k=4
 
         prompt = PromptTemplate(
             input_variables=["context", "question", "chat_history"],
@@ -91,7 +116,7 @@ class Chat_QA_chain_self:
 历史对话:
 {chat_history}
 问题: {question}
-回答:"""
+回答:""",
         )
 
         def format_docs(docs):
@@ -99,7 +124,7 @@ class Chat_QA_chain_self:
 
         def format_history(_):
             return "\n".join(f"用户: {q}\n助手: {a}" for q, a in self.chat_history)
-
+        # 这一步内部完成:用户问题 → 向量检索 → 得到相关文档 → 拼接 Prompt → LLM 生成最终答案 → answer
         qa = (
             {
                 "context": retriever | RunnableLambda(format_docs),
@@ -112,7 +137,9 @@ class Chat_QA_chain_self:
         )
 
         answer = qa.invoke(question)
-        answer = re.sub(r"\\n", '<br/>', answer)
+        answer = re.sub(r"\\n", "<br/>", answer)
         self.chat_history.append((question, answer))  # 更新历史记录
+        pprint({"sself.chat_history": self.chat_history})
 
-        return self.chat_history  # 返回本次回答和更新后的历史记录
+        return self.chat_history  
+        # 返回本次回答和更新后的历史记录,把问题和最终答案保存到历史记录中,[(用户问题, 最终答案), ...]

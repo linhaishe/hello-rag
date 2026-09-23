@@ -155,6 +155,11 @@ qa = (
 answer = qa.invoke(question)
 ```
 
+```
+# 这一步内部完成
+用户问题 → 向量检索 → 得到相关文档 → 拼接 Prompt → LLM 生成最终答案 → answer
+```
+
 这里的 `|` 表示把多个处理步骤连接成一条流水线：
 
 ```text
@@ -776,6 +781,64 @@ StrOutputParser
 
 不是普通的数据收集，而是 Runnable Mapping。三个分支会根据同一个输入生成 Prompt 的变量。
 
+因此第一段并行执行后的结果大致是：
+
+```
+{
+    "context": "检索到的文档内容……",
+    "question": "RAG 是什么？",
+    "chat_history": "之前的对话……",
+}
+```
+
+然后继续执行：
+
+```
+| prompt
+```
+
+把字典填入 Prompt：
+
+```
+context       → {context}
+question      → {question}
+chat_history  → {chat_history}
+```
+
+再继续：
+
+```
+| llm
+```
+
+把完整 Prompt 交给大模型。
+
+最后：
+
+```
+| StrOutputParser()
+```
+
+把模型返回的消息对象转换成普通字符串。
+
+整体流程：
+
+```
+qa.invoke(question)
+        ↓
+并行准备 context、question、chat_history
+        ↓
+填充 prompt
+        ↓
+调用 llm
+        ↓
+转换成字符串
+        ↓
+返回答案
+```
+
+所以第一段不是“第一个链单独调用”，而是 `qa.invoke(question)` 时，字典中的三个分支会一起执行。
+
 ### 常见 Runnable
 
 ```
@@ -852,3 +915,394 @@ llm_btn.click(
 `inputs` 不是自定义参数，而是 Gradio 的固定配置项。
 
 它的作用是：告诉 Gradio，点击按钮时，要把哪些界面组件的值传给函数。
+
+## class Model_center
+
+```python
+class Model_center:
+    """
+    存储问答 Chain 的对象
+
+    - chat_qa_chain_self: 以 (model, embedding) 为键存储的带历史记录的问答链。
+    - qa_chain_self: 以 (model, embedding) 为键存储的不带历史记录的问答链。
+    """
+
+    def __init__(self):
+        self.chat_qa_chain_self = {}
+        self.qa_chain_self = {}
+
+    def chat_qa_chain_self_answer(
+        self,
+        question: str,
+        chat_history: list = [],
+        model: str = "openai",
+        embedding: str = "openai",
+        temperature: float = 0.0,
+        top_k: int = 4,
+        history_len: int = 3,
+        file_path: str = DEFAULT_DB_PATH,
+        persist_path: str = DEFAULT_PERSIST_PATH,
+    ):
+        """
+        使用带历史记录的 RAG 问答链回答用户问题。
+
+        Args:
+            question: 用户当前输入的问题。
+            chat_history: 当前对话历史记录。
+            model: 使用的 LLM 模型名称，例如 "openai" 或 Gemini 模型。
+            embedding: 使用的 Embedding 模型名称，例如 "openai" 或 "m3e"。
+            temperature: 控制模型回答的随机性，数值越高，回答越随机。
+            top_k: 从向量数据库中检索的相关文档数量。
+            history_len: 参与本次问答的历史对话轮数。
+            file_path: 知识库文件或目录的路径。
+            persist_path: 持久化向量数据库的保存路径。
+
+        Returns:
+            tuple:
+                第一个元素：空字符串，用于清空问题输入框；
+                第二个元素：更新后的聊天记录，用于刷新聊天窗口。
+        """
+        chat_history = messages_to_tuples(chat_history)
+        if question == None or len(question) < 1:
+            return "", tuples_to_messages(chat_history)
+        try:
+            if (model, embedding) not in self.chat_qa_chain_self:
+                self.chat_qa_chain_self[(model, embedding)] = Chat_QA_chain_self(
+                    model=model,
+                    temperature=temperature,
+                    top_k=top_k,
+                    chat_history=chat_history,
+                    file_path=file_path,
+                    persist_path=persist_path,
+                    embedding=embedding,
+                )
+            chain = self.chat_qa_chain_self[(model, embedding)]
+            return "", tuples_to_messages(
+                chain.answer(question=question, temperature=temperature, top_k=top_k)
+            )
+        except Exception as e:
+            return e, tuples_to_messages(chat_history)
+
+    def qa_chain_self_answer(
+        self,
+        question: str,
+        chat_history: list = [],
+        model: str = "openai",
+        embedding="openai",
+        temperature: float = 0.0,
+        top_k: int = 4,
+        file_path: str = DEFAULT_DB_PATH,
+        persist_path: str = DEFAULT_PERSIST_PATH,
+    ):
+        """
+        调用不带历史记录的问答链进行回答
+        """
+        chat_history = messages_to_tuples(chat_history)
+        if question == None or len(question) < 1:
+            return "", tuples_to_messages(chat_history)
+        try:
+            if (model, embedding) not in self.qa_chain_self:
+                self.qa_chain_self[(model, embedding)] = QA_chain_self(
+                    model=model,
+                    temperature=temperature,
+                    top_k=top_k,
+                    file_path=file_path,
+                    persist_path=persist_path,
+                    embedding=embedding,
+                )
+            chain = self.qa_chain_self[(model, embedding)]
+            chat_history.append((question, chain.answer(question, temperature, top_k)))
+            return "", tuples_to_messages(chat_history)
+        except Exception as e:
+            return e, tuples_to_messages(chat_history)
+
+    def clear_history(self):
+        if len(self.chat_qa_chain_self) > 0:
+            for chain in self.chat_qa_chain_self.values():
+                chain.clear_history()
+```
+
+### self.chat_qa_chain_self  的判断逻辑
+
+它在 `Model_center.__init__()` 中第一次被赋值为空字典：
+
+```
+def __init__(self):
+    self.chat_qa_chain_self = {}
+```
+
+之后，在判断成立时再放入问答链：
+
+```
+key = (model, embedding)
+
+if key not in self.chat_qa_chain_self:
+    self.chat_qa_chain_self[key] = Chat_QA_chain_self(
+        model=model,
+        embedding=embedding,
+        ...
+    )
+```
+
+完整过程：
+
+第一次调用：
+
+```
+self.chat_qa_chain_self = {}
+key = ("gemini-3.1-flash-lite", "m3e")
+```
+
+判断：
+
+```
+key not in {}
+```
+
+结果为 `True`，于是创建并保存：
+
+```
+self.chat_qa_chain_self[
+    ("gemini-3.1-flash-lite", "m3e")
+] = Chat_QA_chain_self(...)
+```
+
+此时字典大致是：
+
+```
+{
+    ("gemini-3.1-flash-lite", "m3e"): Chat_QA_chain_self对象
+}
+```
+
+第二次使用同样的模型组合：
+
+```
+key not in self.chat_qa_chain_self
+```
+
+结果为 `False`，因为这个 key 已经存在，于是直接复用：
+
+```
+chain = self.chat_qa_chain_self[key]
+```
+
+所以：
+
+```
+__init__：创建空字典
+第一次调用：添加模型组合和问答链
+后续调用：发现 key 已存在，直接复用
+```
+
+如果更换模型组合，例如：
+
+```
+("openai", "m3e")
+```
+
+这个新 key 不在字典中，就会再创建一条新的问答链。
+
+### 这个为什么用class 而不直接使用def
+
+因为这里需要保存多个问答链对象，并在多次调用之间复用它们。`class` 可以把这些状态保存到 `self` 中。
+
+```
+class Model_center:
+    def __init__(self):
+        self.chat_qa_chain_self = {}
+        self.qa_chain_self = {}
+```
+
+程序启动时创建一个对象：
+
+```
+model_center = Model_center()
+```
+
+之后每次调用：
+
+```
+model_center.chat_qa_chain_self_answer(...)
+```
+
+都可以访问之前保存的：
+
+```
+self.chat_qa_chain_self
+```
+
+第一次使用某个模型组合时创建并保存：
+
+```
+self.chat_qa_chain_self[(model, embedding)] = chain
+```
+
+下一次使用相同组合时直接复用。
+
+如果直接使用普通 `def`，也可以实现，但需要把缓存字典作为全局变量或参数传来传去：
+
+```
+chat_qa_chain_self = {}
+
+def chat_qa_chain_self_answer(...):
+    if key not in chat_qa_chain_self:
+        chat_qa_chain_self[key] = create_chain(...)
+```
+
+现在的 `class` 主要解决两件事：
+
+```
+保存状态：self.chat_qa_chain_self
+组织相关功能：问答、清空历史等方法放在一起
+```
+
+因此这里使用 `class` 是为了保存和管理问答链缓存，不是因为调用函数本身必须用类。
+
+## def tuples_to_messages(history)
+
+页面上看起来像“追加一条消息”，实际上函数每次都会返回完整的聊天记录。
+
+```
+return "", tuples_to_messages(
+    chain.answer(...)
+)
+```
+
+例如原来是：
+
+```
+[
+    {"role": "user", "content": "问题1"},
+    {"role": "assistant", "content": "答案1"},
+]
+```
+
+新增问题后，返回的是完整列表：
+
+```
+[
+    {"role": "user", "content": "问题1"},
+    {"role": "assistant", "content": "答案1"},
+    {"role": "user", "content": "问题2"},
+    {"role": "assistant", "content": "答案2"},
+]
+```
+
+Gradio 用这个完整列表重新刷新 `chatbot`，所以视觉上像是只增加了新消息。
+
+不过“缓存”主要影响的是问答链对象：
+
+```
+self.chat_qa_chain_self[(model, embedding)]
+```
+
+同一个模型组合只创建一次 `Chat_QA_chain_self`。之后新的问题会追加到这个对象内部的：
+
+```
+chain.chat_history
+```
+
+因此当前流程是：
+
+```
+页面发送完整聊天记录
+→ 转成 tuples
+→ 问答链检索并生成答案
+→ 追加到 chain.chat_history
+→ 返回完整聊天记录
+→ Gradio 刷新整个聊天窗口
+```
+
+补充一点：当前代码中，`history_len` 并没有真正限制页面展示数量；它主要应该用于限制传给 Prompt 的历史记录。当前实现实际可能会把缓存对象中的全部历史都用于回答。
+
+## rich
+
+你想用的应该是 `rich`，它可以格式化终端输出。
+
+项目里已经有 `rich` 依赖，可以直接使用：
+
+```
+from rich import print
+
+print("[green]模型加载成功[/green]")
+print(f"[cyan]当前模型：{model}[/cyan]")
+```
+
+如果想打印字典、列表等结构化数据：
+
+```
+from rich import print
+
+print(self.chat_qa_chain_self)
+```
+
+更适合调试复杂对象的是 `rich.pretty`：
+
+```
+from rich.pretty import pprint
+
+pprint(self.chat_qa_chain_self)
+```
+
+如果想要表格：
+
+```
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
+table = Table(title="已加载的问答链")
+
+table.add_column("模型")
+table.add_column("Embedding")
+
+for model, embedding in self.chat_qa_chain_self:
+    table.add_row(model, embedding)
+
+console.print(table)
+```
+
+简单打印用：
+
+```
+from rich import print
+```
+
+```python
+pip install rich
+```
+
+### 带标识
+
+`pprint()` 通常只接收一个要打印的对象：
+
+```
+from rich.pretty import pprint
+
+pprint(("chain", chain))
+```
+
+如果只是想加提示，推荐使用 `rich.print`：
+
+```
+from rich import print
+
+print("[bold cyan]chain:[/bold cyan]", chain)
+```
+
+或者普通 Python：
+
+```
+print("chain:", chain)
+```
+
+调试时最简单的是：
+
+```
+from rich.pretty import pprint
+
+pprint({"chain": chain})
+```
+
+这样输出会带有明确的 `chain` 标识。

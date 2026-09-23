@@ -3,6 +3,7 @@
 import re
 import sys
 import os
+from rich.pretty import pprint
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,7 +47,22 @@ def messages_to_tuples(messages):
     return history
 
 
-def tuples_to_messages(history):
+def tuples_to_messages(history: list[tuple[str, str]]) -> list[dict[str, str]]:
+    """
+    将问答元组列表转换为 Gradio 使用的消息列表。
+
+    Args:
+        history: 问答历史列表。
+            每条记录是一个 tuple，格式为
+            (用户问题, 助手回答)。
+
+    Returns:
+        list[dict[str, str]]: 转换后的消息列表。
+            用户消息格式为
+            {"role": "user", "content": question}；
+            助手消息格式为
+            {"role": "assistant", "content": answer}。
+    """
     return [
         message
         for question, answer in history
@@ -86,13 +102,31 @@ class Model_center:
         persist_path: str = DEFAULT_PERSIST_PATH,
     ):
         """
-        调用带历史记录的问答链进行回答
+        使用带历史记录的 RAG 问答链回答用户问题。
+
+        Args:
+            question: 用户当前输入的问题。
+            chat_history: 当前对话历史记录。
+            model: 使用的 LLM 模型名称，例如 "openai" 或 Gemini 模型。
+            embedding: 使用的 Embedding 模型名称，例如 "openai" 或 "m3e"。
+            temperature: 控制模型回答的随机性，数值越高，回答越随机。
+            top_k: 从向量数据库中检索的相关文档数量。
+            history_len: 参与本次问答的历史对话轮数。
+            file_path: 知识库文件或目录的路径。
+            persist_path: 持久化向量数据库的保存路径。
+
+        Returns:
+            tuple:
+                第一个元素：空字符串，用于清空问题输入框；
+                第二个元素：更新后的聊天记录，用于刷新聊天窗口。
         """
         chat_history = messages_to_tuples(chat_history)
         if question == None or len(question) < 1:
             return "", tuples_to_messages(chat_history)
         try:
             if (model, embedding) not in self.chat_qa_chain_self:
+                # 把“LLM 模型 + Embedding 模型”这个组合当作唯一标识,把聊天记录存起来
+                # some_dic[("gemini-3.1-flash-lite", "m3e")]
                 self.chat_qa_chain_self[(model, embedding)] = Chat_QA_chain_self(
                     model=model,
                     temperature=temperature,
@@ -103,6 +137,16 @@ class Model_center:
                     embedding=embedding,
                 )
             chain = self.chat_qa_chain_self[(model, embedding)]
+            pprint({"self.chat_qa_chain_self": chain})
+            pprint(
+                {
+                    "tuples_to_messages": tuples_to_messages(
+                        chain.answer(
+                            question=question, temperature=temperature, top_k=top_k
+                        )
+                    )
+                }
+            )
             return "", tuples_to_messages(
                 chain.answer(question=question, temperature=temperature, top_k=top_k)
             )
