@@ -28,7 +28,7 @@ INIT_LLM = "gemini-3.1-flash-lite"
 EMBEDDING_MODEL_LIST = ["zhipuai", "openai", "m3e"]
 INIT_EMBEDDING_MODEL = "m3e"
 DEFAULT_DB_PATH = "./knowledge_db"
-DEFAULT_PERSIST_PATH = "./vector_db/chroma"
+DEFAULT_PERSIST_PATH = os.getenv("VECTOR_DB_PATH", "./vector_db/chroma")
 AIGC_AVATAR_PATH = "./figures/aigc_avatar.png"
 DATAWHALE_AVATAR_PATH = "./figures/datawhale_avatar.png"
 AIGC_LOGO_PATH = "./figures/aigc_logo.png"
@@ -137,16 +137,6 @@ class Model_center:
                     embedding=embedding,
                 )
             chain = self.chat_qa_chain_self[(model, embedding)]
-            pprint({"self.chat_qa_chain_self": chain})
-            pprint(
-                {
-                    "tuples_to_messages": tuples_to_messages(
-                        chain.answer(
-                            question=question, temperature=temperature, top_k=top_k
-                        )
-                    )
-                }
-            )
             return "", tuples_to_messages(
                 chain.answer(question=question, temperature=temperature, top_k=top_k)
             )
@@ -385,4 +375,7 @@ gr.close_all()
 # 启动新的 Gradio 应用，设置分享功能为 True，并使用环境变量 PORT1 指定服务器端口。
 # demo.launch(share=True, server_port=int(os.environ['PORT1']))
 # 直接启动
-demo.launch(server_name="0.0.0.0", server_port=7860)
+demo.launch(
+    server_name=os.getenv("GRADIO_SERVER_NAME", "127.0.0.1"),
+    server_port=int(os.getenv("GRADIO_SERVER_PORT", "7860")),
+)

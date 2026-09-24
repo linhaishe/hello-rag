@@ -139,7 +139,6 @@ class Chat_QA_chain_self:
         answer = qa.invoke(question)
         answer = re.sub(r"\\n", "<br/>", answer)
         self.chat_history.append((question, answer))  # 更新历史记录
-        pprint({"sself.chat_history": self.chat_history})
 
         return self.chat_history  
         # 返回本次回答和更新后的历史记录,把问题和最终答案保存到历史记录中,[(用户问题, 最终答案), ...]

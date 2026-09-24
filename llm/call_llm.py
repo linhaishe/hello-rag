@@ -214,7 +214,13 @@ def get_completion_gemini(
 
     response = chat_model.invoke(prompt)
 
-    return response.content
+    content = response.content
+    if isinstance(content, list):
+        content = "".join(
+            item if isinstance(item, str) else item.get("text", "")
+            for item in content
+        )
+    return content
 
 
 # def getText(role, content, text = []):

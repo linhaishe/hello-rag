@@ -1439,3 +1439,153 @@ services:
 ```
 
 这样数据仍然在宿主机上，但由 Docker 管理，不会出现在项目的 `vector_db` 目录中。
+
+## Container hello-rag-gradio-1 这个后面自动-1
+`hello-rag-gradio-1` 是 Docker Compose 自动生成的容器名称，通常格式是：
+
+```text
+项目名-服务名-序号
+```
+
+当前对应关系：
+
+```text
+hello-rag  → Compose 项目名
+gradio     → docker-compose.yml 中的服务名
+1          → 第一个实例
+```
+
+所以：
+
+```text
+hello-rag-gradio-1
+```
+
+表示 `hello-rag` 项目中的第一个 `gradio` 容器。
+
+如果扩展多个实例，可能会出现：
+
+```text
+hello-rag-gradio-2
+hello-rag-gradio-3
+```
+
+这个 `-1` 是正常的，不是报错。
+
+如果想自定义固定名称，可以写：
+
+```yaml
+services:
+  gradio:
+    container_name: hello-rag-gradio
+```
+
+不过一般不建议设置 `container_name`，因为会限制 Compose 扩展多个实例。
+它并没有自动扩展。
+
+`-1` 只是 Docker Compose 的实例编号，即使只有一个容器也会加上：
+
+```text
+hello-rag-gradio-1
+```
+
+如果你执行：
+
+```bash
+docker compose up --scale gradio=2
+```
+
+才会真正启动多个实例：
+
+```text
+hello-rag-gradio-1
+hello-rag-gradio-2
+```
+
+所以当前的 `-1` 只表示：
+
+```text
+第 1 个 gradio 容器
+```
+
+不是自动扩容，也不会额外消耗资源。
+
+`docker compose up -d --build `
+
+## 本地的回复质量和docker内有差别
+
+差异主要不是 Docker 本身造成的，而是 Docker 当前加载到的向量库内容和本地不一致。
+
+从你的回答看，Docker 检索到的是：
+
+```text
+Joe 写落地灯规格说明书的示例
+```
+
+而且还是重复片段。这说明当前 `vector_db/chroma` 中存在重复或旧的向量数据，`top_k=3` 可能全部命中了同一个示例，因此模型没有拿到整篇文章的上下文。
+
+项目当前的问题是：
+
+```python
+Chroma.from_documents(...)
+```
+
+每次点击“知识库文件向量化”都会继续往原来的 Chroma 中追加数据，不会自动清空旧数据。
+
+建议重新建立一次干净的向量库：
+
+```bash
+docker compose down
+```
+
+删除本地旧向量库中的内容：
+
+```bash
+rm -rf ./vector_db/chroma
+```
+
+然后重新启动：
+
+```bash
+docker compose up -d --build
+```
+
+再在 Gradio 中：
+
+1. 选择 `m3e`；
+2. 上传或选择完整知识库；
+3. 点击“知识库文件向量化”一次；
+4. 将 `top_k` 调到 `8` 或 `10`；
+5. 使用 `Chat db without history` 查询。
+
+另外，确认本地和 Docker 使用的是同一份数据库：
+
+```bash
+ls -lah ./vector_db/chroma
+# 检查容器内向量库：
+`docker compose exec gradio ls -lah /app/vector_db/chroma`
+
+# 检查本地向量库：
+`ls -lah ./vector_db/chroma`
+
+# 两边应该看到同一份 `chroma.sqlite3` 和索引文件。
+```
+
+如果希望进一步确认检索结果，可以在 `qa` 链中临时打印：
+
+```python
+docs = retriever.invoke(question)
+pprint([
+    {
+        "source": doc.metadata.get("source"),
+        "content": doc.page_content[:200],
+    }
+    for doc in docs
+])
+```
+
+
+
+
+
+

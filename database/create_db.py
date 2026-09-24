@@ -19,7 +19,7 @@ from langchain_chroma import Chroma
 # 首先实现基本配置
 
 DEFAULT_DB_PATH = "./knowledge_db"
-DEFAULT_PERSIST_PATH = "./vector_db"
+DEFAULT_PERSIST_PATH = os.getenv("VECTOR_DB_PATH", "./vector_db/chroma")
 
 
 # 获取文件路径
@@ -48,6 +48,11 @@ def file_loader(
     # 判断 file 是否为临时文件对象(程序运行期间临时创建的文件，用完后通常会自动删除),项目中的 Gradio 上传文件可能会先保存成临时文件，因此代码需要取出真实路径,转换后，file 就从“临时文件对象”变成了普通文件路径字符串
     if isinstance(file, tempfile._TemporaryFileWrapper):
         file = file.name
+
+    # 文件路径失效时直接跳过，避免把不存在的文件误当成目录。
+    if not os.path.exists(file):
+        print(f"跳过不存在的文件: {file}")
+        return
 
     # 判断 file 是否是一个真实存在的文件
     if not os.path.isfile(file):
@@ -126,8 +131,6 @@ def create_db(
     if isinstance(embeddings, str):
         embeddings = get_embedding(embedding=embeddings)
 
-    # 定义持久化路径
-    persist_directory = "./vector_db/chroma"
     # 加载数据库
     vectordb = Chroma.from_documents(
         documents=split_docs,

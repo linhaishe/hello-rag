@@ -5,6 +5,8 @@ services:
     image: hello-rag:api
     env_file:
       - .env
+    environment:
+      VECTOR_DB_PATH: /app/vector_db/chroma
     ports:
       - "8000:8000"
     volumes:
@@ -14,6 +16,10 @@ services:
     image: hello-rag:api
     env_file:
       - .env
+    environment:
+      VECTOR_DB_PATH: /app/vector_db/chroma
+      GRADIO_SERVER_NAME: 0.0.0.0
+      GRADIO_SERVER_PORT: 7860
     command: ["python", "serve/run_gradio.py"]
     ports:
       - "7860:7860"
