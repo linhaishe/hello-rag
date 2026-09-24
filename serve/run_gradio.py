@@ -385,4 +385,4 @@ gr.close_all()
 # 启动新的 Gradio 应用，设置分享功能为 True，并使用环境变量 PORT1 指定服务器端口。
 # demo.launch(share=True, server_port=int(os.environ['PORT1']))
 # 直接启动
-demo.launch()
+demo.launch(server_name="0.0.0.0", server_port=7860)

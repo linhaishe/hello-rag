@@ -1372,3 +1372,70 @@ pprint({"chain": chain})
 ```
 
 这样输出会带有明确的 `chain` 标识。
+
+## docker 查看服务日志
+
+`docker compose logs -f gradio`
+
+## 容器内跑了向量存储，本地也有新的数据库产生了
+这是因为 Compose 配置了目录挂载：
+
+```yaml
+volumes:
+  - ./vector_db:/app/vector_db
+```
+
+它的含义是：
+
+```text
+本地 ./vector_db
+↔ 容器内 /app/vector_db
+```
+
+所以程序虽然在容器里写入：
+
+```text
+/app/vector_db
+```
+
+文件实际上会同步保存到本地：
+
+```text
+./vector_db
+```
+
+这是为了防止容器删除后向量数据库丢失，属于正常现象。
+
+如果你希望数据只存在容器中，可以删除这段：
+
+```yaml
+volumes:
+  - ./vector_db:/app/vector_db
+```
+
+但这样容器删除或重建后，向量数据库也会丢失。
+
+更推荐保留当前配置：
+
+```text
+容器：运行程序
+本地：持久化向量数据库
+```
+
+如果不想直接看到项目目录中的数据库，也可以改用 Docker 命名卷：
+
+```yaml
+volumes:
+  chroma_data:
+
+services:
+  api:
+    volumes:
+      - chroma_data:/app/vector_db
+
+  gradio:
+    volumes:
+      - chroma_data:/app/vector_db
+```
+
+这样数据仍然在宿主机上，但由 Docker 管理，不会出现在项目的 `vector_db` 目录中。

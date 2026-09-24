@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      context: .
+    image: hello-rag:api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./vector_db:/app/vector_db
+
+  gradio:
+    image: hello-rag:api
+    env_file:
+      - .env
+    command: ["python", "serve/run_gradio.py"]
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./vector_db:/app/vector_db
