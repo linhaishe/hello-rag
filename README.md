@@ -31,7 +31,29 @@ langsmith>=0.3.45,<1
 
 `python -m pip freeze > requirements-new.txt`
 
+| 术语 | 含义 |
+|---|---|
+| Embedding | 把文本转换为向量的模型或过程 |
+| 向量检索 | 根据向量相似度查找文档 |
+| Embedding 检索 | 强调使用 Embedding 生成向量后进行的检索 |
+| Chroma | 保存向量并执行相似度搜索的向量数据库 |
+
 "../" 是相对于你运行命令时的当前工作目录，而不是相对于当前 .py 文件。
+
+当前 RAG 策略可以描述为：基于 Embedding 和 Chroma 的单路向量相似度检索。
+
+流程：
+
+```
+用户问题
+→ 问题向量化
+→ Chroma 相似度搜索
+→ 返回 Top-K 文档块
+→ 拼接 context
+→ Prompt
+→ Gemini / 其他 LLM
+→ 最终答案
+```
 
 ## RAG Process
 
