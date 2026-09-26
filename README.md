@@ -22,14 +22,47 @@ uvicorn serve.api:app --reload
 # 运行项目
 python serve/run_gradio.py
 ```
+
 ```python
 python==3.11.15
 langchain==1.4.0
-langchain-community>=0.3
+langchain-community==0.3.31
 langsmith>=0.3.45,<1
 ```
 
-`python -m pip freeze > requirements-new.txt`
+`requirements-new.txt` 只维护项目直接依赖。新增第三方库时，请手动添加包名和已验证版本，不要用 `pip freeze` 覆盖该文件。
+
+
+## RAGAs 评估
+
+项目提供了 `evaluation/ragas_eval.py`，用于评估当前 RAG 流程的四个指标：
+
+- `Faithfulness`：答案中的内容是否能被检索到的上下文支持；
+- `Answer Relevancy`：答案是否真正回答了用户问题；
+- `Context Precision`：检索结果中有多少内容与问题相关；
+- `Context Recall`：相关内容有多少被检索出来。
+
+RAGAs 已包含在项目依赖中，统一安装即可：
+
+```bash
+python -m pip install -r requirements-new.txt
+```
+
+运行评估：
+
+```bash
+python evaluation/ragas_eval.py
+```
+
+脚本会读取 `knowledge_db/prompt_engineering`，使用本地 M3E 生成向量、Chroma 进行检索，并使用 Gemini 生成答案和执行评估。运行前请在 `.env` 中配置：
+
+```text
+GEMINI_API_KEY=你的 Gemini API Key
+```
+
+评估结果通常在 `0~1` 之间，分数越高表示表现越好。当前使用的 LLM 版 `Context Precision` 和 `Context Recall` 需要人工维护 `reference` 标准答案，不能直接把系统生成的答案当成标准答案。脚本会同时输出总体分数和每条样本的明细。评估结果依赖问题集质量；正式评估时应在 `evaluation/ragas_eval.py` 中补充更多覆盖不同主题和难度的问题。
+
+
 
 | 术语 | 含义 |
 |---|---|
@@ -1605,9 +1638,4 @@ pprint([
     for doc in docs
 ])
 ```
-
-
-
-
-
 

@@ -3,7 +3,6 @@
 import re
 import sys
 import os
-from rich.pretty import pprint
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -14,7 +13,6 @@ from llm.call_llm import get_completion, LLM_MODEL_DICT
 from dotenv import load_dotenv, find_dotenv
 import gradio as gr
 import io  # 用于处理流式数据（例如文件流）
-import IPython.display  # 用于在 IPython 环境中显示数据，例如图片
 
 # 导入 dotenv 库的函数
 # dotenv 允许您从 .env 文件中读取环境变量
